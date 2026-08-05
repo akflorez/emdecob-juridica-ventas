@@ -10,3 +10,7 @@ env/
 .gitignore
 .vscode/
 node_modules/
+scratch/
+tmp/
+*.xlsx
+*.docx

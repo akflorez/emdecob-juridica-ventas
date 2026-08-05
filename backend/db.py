@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-raw_url = os.getenv("DATABASE_URL", "")
+raw_url = os.getenv("DATABASE_URL") or os.getenv("NEON_URL") or ""
 
 def get_connection_url(url_str):
     if not url_str:
@@ -15,8 +15,8 @@ def get_connection_url(url_str):
     clean_url = url_str.replace("${DB_USER:-emdecob}", "emdecob")
     clean_url = clean_url.replace("${DB_PASSWORD:-emdecob2026}", "emdecob2026")
 
-    if "@localhost" in clean_url:
-        clean_url = clean_url.replace("@localhost", "@db")
+    if clean_url.startswith("postgres://"):
+        clean_url = clean_url.replace("postgres://", "postgresql://", 1)
 
     return clean_url
 
