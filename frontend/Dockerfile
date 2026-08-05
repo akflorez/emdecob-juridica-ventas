@@ -15,8 +15,8 @@ COPY . ./
 # Build application
 RUN npm run build
 
-# Ensure /app/dist exists for stage 2
-RUN mkdir -p /app/dist
+# Ensure dist exists at /app/dist
+RUN mkdir -p /app/dist && if [ -d "dist" ]; then cp -r dist/* /app/dist/ ; fi
 
 # Stage 2: Serve application with Nginx
 FROM nginx:alpine

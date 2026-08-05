@@ -3,20 +3,21 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files from frontend or root
-COPY frontend/package*.json ./
+# Copy root and frontend package files
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
 
 # Install dependencies
-RUN npm install
+RUN cd frontend && npm install
 
-# Copy source code from frontend
-COPY frontend/ ./
+# Copy source code
+COPY . ./
 
 # Build application
-RUN npm run build
+RUN npm run build || (cd frontend && npm run build)
 
-# Ensure /app/dist exists for stage 2
-RUN mkdir -p /app/dist
+# Ensure dist exists at /app/dist
+RUN mkdir -p /app/dist && if [ -d "frontend/dist" ]; then cp -r frontend/dist/* /app/dist/ ; fi
 
 # Stage 2: Serve application with Nginx
 FROM nginx:alpine

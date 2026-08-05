@@ -2,6 +2,7 @@
   "name": "emdecob-consultas",
   "version": "1.0.0",
   "scripts": {
+    "build": "cd frontend && npm install && npm run build && mkdir -p ../dist && cp -r dist/* ../dist/ 2>/dev/null || true",
     "vercel-build": "cd frontend && npm install && npm run build"
   }
 }
