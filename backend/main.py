@@ -3249,7 +3249,12 @@ def login(data: LoginRequest):
     try:
         db = SessionLocal()
         user_db = db.query(User).filter(
-            or_(User.username == username, User.email == username),
+            or_(
+                func.lower(User.username) == username,
+                func.lower(User.email) == username,
+                User.username == username_raw,
+                User.email == username_raw,
+            ),
             User.is_active == True
         ).first()
         

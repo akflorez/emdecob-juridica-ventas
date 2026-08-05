@@ -37,7 +37,7 @@ export default function LoginPage({ initialView = 'login' }: LoginPageProps) {
   }, [initialView]);
   
   // Login State
-  const [username, setUsername] = useState('juricob');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -223,19 +223,19 @@ export default function LoginPage({ initialView = 'login' }: LoginPageProps) {
             {view === 'login' && (
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="space-y-3">
-                  <Label htmlFor="u" className="text-sm font-bold text-slate-700 ml-1">Correo electrónico</Label>
+                  <Label htmlFor="u" className="text-sm font-bold text-slate-700 ml-1">Correo electrónico o usuario</Label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                    <Input id="u" type="text" placeholder="ejemplo@correo.com" value={username} onChange={(e) => setUsername(e.target.value)} className="pl-14 h-14 bg-slate-50/50 border-slate-100 focus:border-emerald-400 rounded-2xl text-base font-sans-juricob" />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                    <Input id="u" type="text" placeholder="ejemplo@correo.com o usuario" value={username} onChange={(e) => setUsername(e.target.value)} className="pl-14 h-14 bg-white border-2 border-slate-200 text-slate-900 font-semibold placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:text-slate-900 rounded-2xl text-base font-sans-juricob shadow-sm" />
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <Label htmlFor="p" className="text-sm font-bold text-slate-700 ml-1">Contraseña</Label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                    <Input id="p" type={showPassword ? 'text' : 'password'} placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-14 pr-14 h-14 bg-slate-50/50 border-slate-100 focus:border-emerald-400 rounded-2xl text-base font-sans-juricob" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                    <Input id="p" type={showPassword ? 'text' : 'password'} placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-14 pr-14 h-14 bg-white border-2 border-slate-200 text-slate-900 font-semibold placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:text-slate-900 rounded-2xl text-base font-sans-juricob shadow-sm" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
@@ -260,18 +260,18 @@ export default function LoginPage({ initialView = 'login' }: LoginPageProps) {
                   <div className="relative flex justify-center text-xs"><span className="bg-white px-8 text-slate-400 font-bold uppercase tracking-widest">¿No tienes una cuenta?</span></div>
                 </div>
 
-                <Button type="button" onClick={() => { setView('register'); setLoginError(null); }} variant="outline" className="w-full h-14 border-slate-200 text-[#021C33] font-bold rounded-2xl text-base flex items-center justify-center gap-2 hover:bg-slate-50 transition-all active:scale-[0.98]">Crear cuenta</Button>
+                <Button type="button" onClick={() => { setView('register'); setLoginError(null); }} variant="outline" className="w-full h-14 border-2 border-[#021C33] bg-white hover:bg-slate-100 text-[#021C33] font-bold rounded-2xl text-base flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98] cursor-pointer">Crear cuenta</Button>
               </form>
             )}
 
             {view === 'forgot_password' && (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-8">
-                <p className="text-center text-sm text-slate-500">Ingresa tu correo y te enviaremos instrucciones para recuperar tu acceso.</p>
+                <p className="text-center text-sm text-slate-500">Ingresa tu correo o usuario y te enviaremos instrucciones para recuperar tu acceso.</p>
                 <div className="space-y-3">
-                  <Label htmlFor="fe" className="text-sm font-bold text-slate-700 ml-1">Correo electrónico</Label>
+                  <Label htmlFor="fe" className="text-sm font-bold text-slate-700 ml-1">Correo electrónico o usuario</Label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                    <Input id="fe" type="email" placeholder="ejemplo@correo.com" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required className="pl-14 h-14 bg-slate-50/50 border-slate-100 focus:border-emerald-400 rounded-2xl text-base font-sans-juricob" />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                    <Input id="fe" type="text" placeholder="ejemplo@correo.com o usuario" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required className="pl-14 h-14 bg-white border-2 border-slate-200 text-slate-900 font-semibold placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:text-slate-900 rounded-2xl text-base font-sans-juricob shadow-sm" />
                   </div>
                 </div>
 
@@ -288,29 +288,29 @@ export default function LoginPage({ initialView = 'login' }: LoginPageProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700 ml-1">Empresa</Label>
-                    <Input placeholder="Nombre Empresa" required value={regCompany} onChange={(e) => setRegCompany(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                    <Input placeholder="Nombre Empresa" required value={regCompany} onChange={(e) => setRegCompany(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700 ml-1">NIT (Opcional)</Label>
-                    <Input placeholder="123456" value={regNit} onChange={(e) => setRegNit(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                    <Input placeholder="123456" value={regNit} onChange={(e) => setRegNit(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700 ml-1">Administrador</Label>
-                  <Input placeholder="Nombre completo" required value={regAdmin} onChange={(e) => setRegAdmin(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                  <Input placeholder="Nombre completo" required value={regAdmin} onChange={(e) => setRegAdmin(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700 ml-1">Correo electrónico</Label>
-                  <Input type="email" placeholder="ejemplo@correo.com" required value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                  <Label className="text-xs font-bold text-slate-700 ml-1">Correo electrónico o usuario</Label>
+                  <Input type="text" placeholder="ejemplo@correo.com o usuario" required value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700 ml-1">Contraseña</Label>
-                    <Input type="password" required value={regPassword} onChange={(e) => setRegPassword(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                    <Input type="password" required value={regPassword} onChange={(e) => setRegPassword(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700 ml-1">Confirmar</Label>
-                    <Input type="password" required value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)} className="h-12 bg-slate-50/50 rounded-xl" />
+                    <Input type="password" required value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)} className="h-12 bg-white border-2 border-slate-200 text-slate-900 font-semibold focus:border-emerald-500 focus:bg-white rounded-xl" />
                   </div>
                 </div>
 
