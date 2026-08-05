@@ -25,6 +25,7 @@ import HelpPage from "./pages/HelpPage";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import LandingPage from "./pages/LandingPage";
+import TableroIAPage from "./pages/TableroIAPage";
 
 import { MyTasksView } from "./components/MyTasksView";
 
@@ -59,6 +60,7 @@ const App = () => (
                 
                 {/* Nuevas rutas de Experiencia de Usuario */}
                 <Route path="/mis-tareas" element={<MyTasksView />} />
+                <Route path="/tablero-ia" element={<TableroIAPage />} />
                 
                 <Route path="/consultar" element={<ConsultarPage />} />
                 <Route path="/consultar-nombre" element={<BulkSearchPage />} />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, Search, FolderOpen, Scale, Settings, ShieldAlert, AlertTriangle, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, UserCheck, Clock, Book, type LucideIcon } from "lucide-react";
+import { Upload, Search, FolderOpen, Scale, Settings, ShieldAlert, AlertTriangle, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, UserCheck, Clock, Book, Sparkles, type LucideIcon } from "lucide-react";
 import { SidebarNavLink } from "./SidebarNavLink";
 import { UserMenu } from "./UserMenu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +52,10 @@ export function AppSidebar() {
             Experiencia de Usuario
           </p>
         )}
+
+        <SidebarNavLink to="/tablero-ia" icon={Sparkles} collapsed={collapsed} title="Tablero IA (Inteligencia)">
+          {!collapsed && "Tablero IA (Inteligencia)"}
+        </SidebarNavLink>
 
         <SidebarNavLink to="/mis-tareas" icon={UserCheck} collapsed={collapsed} title="Mis Tareas">
           {!collapsed && "Mis Tareas"}
