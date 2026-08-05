@@ -5,11 +5,16 @@ __pycache__/
 venv/
 ENV/
 env/
-.env
+.env*
 .git/
 .gitignore
 .vscode/
 node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
 scratch/
 tmp/
 *.xlsx

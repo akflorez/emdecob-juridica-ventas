@@ -9,16 +9,19 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy all source files
+# Copy source code
 COPY . ./
 
-# Build the application (produces /app/dist)
+# Build application
 RUN npm run build
 
-# Stage 2: Serve the application with Nginx
+# Ensure /app/dist exists for stage 2
+RUN mkdir -p /app/dist
+
+# Stage 2: Serve application with Nginx
 FROM nginx:alpine
 
-# Copy built assets to Nginx html directory
+# Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Copy custom Nginx configuration
