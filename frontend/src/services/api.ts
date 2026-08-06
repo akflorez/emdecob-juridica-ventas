@@ -34,7 +34,12 @@ export async function apiFetch<T>(
   if (!BASE_URL) throw new Error("VITE_API_BASE_URL no está definido");
 
   const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // Prevenir duplicación de BASE_URL (ejemplo: /api + /api/auth/login => /api/auth/login)
+  if (cleanBaseUrl && (cleanPath.startsWith(`${cleanBaseUrl}/`) || cleanPath === cleanBaseUrl)) {
+    cleanPath = cleanPath.slice(cleanBaseUrl.length);
+  }
 
   const headers = new Headers(options.headers || {});
   const isFormData = options.body instanceof FormData;
@@ -46,7 +51,8 @@ export async function apiFetch<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${cleanBaseUrl}${cleanPath}`, { ...options, headers });
+  const requestUrl = `${cleanBaseUrl}${cleanPath}`;
+  const res = await fetch(requestUrl, { ...options, headers });
 
   if (!res.ok) {
     const payload = await parseError(res);
@@ -70,70 +76,34 @@ export type LoginResponse = { token: string; user: User };
 
 export function login(username: string, password: string) {
   return apiFetch<LoginResponse>(
-    "/api/auth/login",
+    "/auth/login",
     { method: "POST", body: JSON.stringify({ username, password }) },
     false
-  ).catch((err) => {
-    if (err.status === 404) {
-      return apiFetch<LoginResponse>(
-        "/auth/login",
-        { method: "POST", body: JSON.stringify({ username, password }) },
-        false
-      );
-    }
-    throw err;
-  });
+  );
 }
 
 export function registerCompany(data: any) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/api/auth/register-company",
+    "/auth/register-company",
     { method: "POST", body: JSON.stringify(data) },
     false
-  ).catch((err) => {
-    if (err.status === 404) {
-      return apiFetch<{ ok: boolean; message: string }>(
-        "/auth/register-company",
-        { method: "POST", body: JSON.stringify(data) },
-        false
-      );
-    }
-    throw err;
-  });
+  );
 }
 
 export function forgotPassword(email: string) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/api/auth/forgot-password",
+    "/auth/forgot-password",
     { method: "POST", body: JSON.stringify({ email }) },
     false
-  ).catch((err) => {
-    if (err.status === 404) {
-      return apiFetch<{ ok: boolean; message: string }>(
-        "/auth/forgot-password",
-        { method: "POST", body: JSON.stringify({ email }) },
-        false
-      );
-    }
-    throw err;
-  });
+  );
 }
 
 export function resetPassword(data: any) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/api/auth/reset-password",
-    { method: "POST", body: JSON.stringify(data) },
+    "/auth/reset-password",
+    { method: "POST", body: JSON.stringify({ email }) },
     false
-  ).catch((err) => {
-    if (err.status === 404) {
-      return apiFetch<{ ok: boolean; message: string }>(
-        "/auth/reset-password",
-        { method: "POST", body: JSON.stringify(data) },
-        false
-      );
-    }
-    throw err;
-  });
+  );
 }
 
 export type User = {
