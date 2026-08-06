@@ -3230,6 +3230,7 @@ def sync_santiago(db: Session = Depends(get_db)):
 # AUTH  LOGIN / LOGOUT / USUARIOS
 # =========================
 
+@app.post("/api/auth/login")
 @app.post("/auth/login")
 def login(data: LoginRequest):
     """Autentica un usuario y retorna un token de sesi?n."""
@@ -3329,10 +3330,12 @@ def login(data: LoginRequest):
     raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
 
+@app.post("/api/auth/logout")
 @app.post("/auth/logout")
 def logout():
     return {"ok": True, "message": "Sesin cerrada"}
 
+@app.post("/api/auth/register")
 @app.post("/auth/register")
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     # 1. Verificar si ya existe
@@ -3357,6 +3360,7 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
     return {"ok": True, "message": "Usuario registrado exitosamente", "user_id": new_user.id}
 
+@app.post("/api/auth/register-company")
 @app.post("/auth/register-company")
 def register_company(data: RegisterCompanyRequest, db: Session = Depends(get_db)):
     if data.password != data.confirm_password:

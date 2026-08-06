@@ -70,34 +70,70 @@ export type LoginResponse = { token: string; user: User };
 
 export function login(username: string, password: string) {
   return apiFetch<LoginResponse>(
-    "/auth/login",
+    "/api/auth/login",
     { method: "POST", body: JSON.stringify({ username, password }) },
     false
-  );
+  ).catch((err) => {
+    if (err.status === 404) {
+      return apiFetch<LoginResponse>(
+        "/auth/login",
+        { method: "POST", body: JSON.stringify({ username, password }) },
+        false
+      );
+    }
+    throw err;
+  });
 }
 
 export function registerCompany(data: any) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/auth/register-company",
+    "/api/auth/register-company",
     { method: "POST", body: JSON.stringify(data) },
     false
-  );
+  ).catch((err) => {
+    if (err.status === 404) {
+      return apiFetch<{ ok: boolean; message: string }>(
+        "/auth/register-company",
+        { method: "POST", body: JSON.stringify(data) },
+        false
+      );
+    }
+    throw err;
+  });
 }
 
 export function forgotPassword(email: string) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/auth/forgot-password",
+    "/api/auth/forgot-password",
     { method: "POST", body: JSON.stringify({ email }) },
     false
-  );
+  ).catch((err) => {
+    if (err.status === 404) {
+      return apiFetch<{ ok: boolean; message: string }>(
+        "/auth/forgot-password",
+        { method: "POST", body: JSON.stringify({ email }) },
+        false
+      );
+    }
+    throw err;
+  });
 }
 
 export function resetPassword(data: any) {
   return apiFetch<{ ok: boolean; message: string }>(
-    "/auth/reset-password",
+    "/api/auth/reset-password",
     { method: "POST", body: JSON.stringify(data) },
     false
-  );
+  ).catch((err) => {
+    if (err.status === 404) {
+      return apiFetch<{ ok: boolean; message: string }>(
+        "/auth/reset-password",
+        { method: "POST", body: JSON.stringify(data) },
+        false
+      );
+    }
+    throw err;
+  });
 }
 
 export type User = {
