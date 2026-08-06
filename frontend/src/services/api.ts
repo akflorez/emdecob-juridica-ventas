@@ -31,14 +31,11 @@ export async function apiFetch<T>(
   options: RequestInit = {},
   auth = true
 ): Promise<T> {
-  if (!BASE_URL) throw new Error("VITE_API_BASE_URL no está definido");
-
-  const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-  // Prevenir duplicación de BASE_URL (ejemplo: /api + /api/auth/login => /api/auth/login)
-  if (cleanBaseUrl && (cleanPath.startsWith(`${cleanBaseUrl}/`) || cleanPath === cleanBaseUrl)) {
-    cleanPath = cleanPath.slice(cleanBaseUrl.length);
+  // Asegurar que la petición vaya a /api/ para pasar por la regla de Proxy Nginx
+  if (!cleanPath.startsWith('/api/') && cleanPath !== '/api') {
+    cleanPath = `/api${cleanPath}`;
   }
 
   const headers = new Headers(options.headers || {});
@@ -51,8 +48,7 @@ export async function apiFetch<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const requestUrl = `${cleanBaseUrl}${cleanPath}`;
-  const res = await fetch(requestUrl, { ...options, headers });
+  const res = await fetch(cleanPath, { ...options, headers });
 
   if (!res.ok) {
     const payload = await parseError(res);
