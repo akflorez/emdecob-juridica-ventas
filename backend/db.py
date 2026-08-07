@@ -10,7 +10,7 @@ raw_url = os.getenv("DATABASE_URL") or os.getenv("NEON_URL") or ""
 
 def get_connection_url(url_str):
     if not url_str:
-        return "postgresql://emdecob:emdecob2026@db:5432/juricob"
+        return "postgresql://postgres:J1sAwYBgoV6nfilKy9bLB1fmkHZhh6ljFzN8syGWyPAZLJUgqAIuCHoxKDqUrslv@84.247.130.122:5438/postgres"
 
     clean_url = url_str.replace("${DB_USER:-emdecob}", "emdecob")
     clean_url = clean_url.replace("${DB_PASSWORD:-emdecob2026}", "emdecob2026")
