@@ -3,25 +3,19 @@ services:
     build:
       context: .
       dockerfile: ./backend/Dockerfile
-    container_name: emdecob-backend
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:J1sAwYBgoV6nfilKy9bLB1fmkHZhh6ljFzN8syGWyPAZLJUgqAIuCHoxKDqUrslv@84.247.130.122:5438/postgres}
       - NEON_URL=${NEON_URL:-postgresql://postgres:J1sAwYBgoV6nfilKy9bLB1fmkHZhh6ljFzN8syGWyPAZLJUgqAIuCHoxKDqUrslv@84.247.130.122:5438/postgres}
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
 
   frontend:
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
-    container_name: emdecob-frontend
     restart: always
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
-
-networks:
-  default:
-    name: emdecob-network
