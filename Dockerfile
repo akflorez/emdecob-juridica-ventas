@@ -40,7 +40,7 @@ COPY . .
 COPY --from=build_frontend /app/frontend/dist /app/dist
 
 # ============================================
-# Nginx Config - written with printf to guarantee LF, no BOM
+# Nginx Config - using printf to guarantee LF, no BOM
 # ============================================
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default \
     && rm -f /etc/nginx/conf.d/*
@@ -84,6 +84,36 @@ RUN printf 'server {\n\
 RUN nginx -t
 
 # ============================================
-# CMD inline - no external script file, no encoding issues
+# Verify backend can be imported at build time (catches import errors early)
+# DATABASE_URL not set at build, that is OK - we just check syntax/imports
 # ============================================
-CMD sh -c 'cd /app && uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1 & sleep 8 && nginx -g "daemon off;"'
+RUN python -c "
+import sys, os
+os.environ['DATABASE_URL'] = 'postgresql://x:x@127.0.0.1:9999/x'
+print('[BUILD-CHECK] Testing backend imports...')
+try:
+    import backend.main as m
+    print('[BUILD-CHECK] OK - backend imports successfully')
+except Exception as e:
+    print(f'[BUILD-CHECK] WARNING - backend import error: {e}')
+" || true
+
+# ============================================
+# CMD: verbose startup - shows uvicorn output in Coolify logs
+# ============================================
+CMD sh -c '\
+  echo "[BOOT] ===== JURICOB STARTUP $(date) ====="; \
+  echo "[BOOT] Python: $(python --version)"; \
+  echo "[BOOT] Working dir: $(pwd)"; \
+  echo "[BOOT] DATABASE_URL set: $([ -n "$DATABASE_URL" ] && echo YES || echo NO-USING-HARDCODED)"; \
+  echo "[BOOT] Starting uvicorn backend.main:app on 127.0.0.1:8000 ..."; \
+  cd /app && uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1 --log-level info & \
+  echo "[BOOT] uvicorn PID=$! - waiting 20 seconds..."; \
+  sleep 20; \
+  echo "[BOOT] Checking if uvicorn is alive..."; \
+  wget -q -O /dev/null http://127.0.0.1:8000/docs 2>/dev/null \
+    && echo "[BOOT] uvicorn OK - backend is UP" \
+    || echo "[BOOT] WARNING - uvicorn NOT responding on port 8000"; \
+  echo "[BOOT] Starting Nginx on port 80..."; \
+  nginx -g "daemon off;" \
+'
