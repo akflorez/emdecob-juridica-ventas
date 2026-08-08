@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Clean default Debian Nginx configuration
+# Clean all default Nginx sites and confs to prevent duplicate server conflicts
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /var/www/html/* /etc/nginx/conf.d/*
 
 WORKDIR /app
@@ -38,13 +38,12 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt
 # Copy all application code
 COPY . .
 
-# Copy built React assets into Nginx html directories
+# Copy built React assets into Nginx html directory
 COPY --from=build_frontend /app/frontend/dist /var/www/html
-COPY --from=build_frontend /app/frontend/dist /usr/share/nginx/html
 
-# Copy Nginx configuration to both conf.d and sites-enabled
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/sites-enabled/default
+# Copy single Nginx configuration to sites-available and symlink to sites-enabled
+COPY nginx.conf /etc/nginx/sites-available/default
+RUN ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Create startup script to run FastAPI backend (port 8000) and Nginx frontend (port 80)
 RUN echo '#!/bin/sh' > /app/start.sh && \
