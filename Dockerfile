@@ -1,5 +1,5 @@
 # Single-container Dockerfile: React Frontend + Python FastAPI Backend
-# Coolify must use Build Pack: Dockerfile with this file
+# Coolify: Build Pack=Dockerfile, Dockerfile Location=/Dockerfile, Ports Exposes=80
 
 # ============================================
 # Stage 1: Build the React frontend
@@ -8,16 +8,9 @@ FROM node:18-alpine AS build_frontend
 
 WORKDIR /app/frontend
 
-# Copy only the frontend package files first for better Docker cache
 COPY frontend/package*.json ./
-
-# Install dependencies
 RUN npm install
-
-# Copy frontend source code
 COPY frontend/ ./
-
-# Build the React app
 RUN npm run build
 
 # ============================================
@@ -25,9 +18,10 @@ RUN npm run build
 # ============================================
 FROM python:3.11-slim
 
-# Install Nginx + PostgreSQL client + build deps
+# Install system deps: Nginx + wget (for health check) + build libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
+    wget \
     libpq-dev \
     gcc \
     python3-dev \
@@ -42,92 +36,21 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the full application code
 COPY . .
 
-# Copy built React assets into /app/dist (Nginx will serve from here)
+# Copy built React assets
 COPY --from=build_frontend /app/frontend/dist /app/dist
 
 # ============================================
-# Nginx Configuration (inline, no external file needed)
+# Copy Nginx config (file already in repo - no heredoc issues)
 # ============================================
-RUN rm -f /etc/nginx/sites-enabled/default && \
-    cat > /etc/nginx/sites-enabled/juricob.conf << 'NGINXEOF'
-server {
-    listen 80 default_server;
-    server_name _;
-
-    root /app/dist;
-    index index.html;
-
-    # Disable caching of index.html
-    location = /index.html {
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-    }
-
-    # Proxy /api/* -> FastAPI (strips /api prefix)
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 120s;
-    }
-
-    # Proxy /auth/* -> FastAPI directly
-    location /auth/ {
-        proxy_pass http://127.0.0.1:8000/auth/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 120s;
-    }
-
-    # Static assets with long cache
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # SPA fallback - always return index.html for client-side routing
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-NGINXEOF
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default \
+    && rm -f /etc/nginx/conf.d/*
+COPY nginx.conf /etc/nginx/sites-available/juricob
+RUN ln -s /etc/nginx/sites-available/juricob /etc/nginx/sites-enabled/juricob
 
 # ============================================
-# Startup script: Launch FastAPI then Nginx
+# Copy startup script (file already in repo - no heredoc issues)
 # ============================================
-RUN cat > /app/start.sh << 'STARTEOF'
-#!/bin/sh
-set -e
-
-echo "[STARTUP] Starting FastAPI backend on 127.0.0.1:8000..."
-cd /app
-uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1 &
-BACKEND_PID=$!
-
-echo "[STARTUP] Waiting 3 seconds for backend to initialize..."
-sleep 3
-
-echo "[STARTUP] Verifying backend is up..."
-for i in 1 2 3 4 5; do
-    if curl -s http://127.0.0.1:8000/docs > /dev/null 2>&1; then
-        echo "[STARTUP] Backend is ready!"
-        break
-    fi
-    echo "[STARTUP] Waiting... attempt $i"
-    sleep 2
-done
-
-echo "[STARTUP] Starting Nginx on port 80..."
-nginx -t && nginx -g "daemon off;"
-STARTEOF
-
+COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 EXPOSE 80
