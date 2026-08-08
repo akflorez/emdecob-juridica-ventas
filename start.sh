@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 set -e
 
 echo "[STARTUP] Starting FastAPI backend on 127.0.0.1:8000..."
