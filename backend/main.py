@@ -1101,8 +1101,12 @@ async def run_publicaciones_worker_loop():
 async def lifespan(app: FastAPI):
     global auto_refresh_task, auto_refresh_running, auto_refresh_stats
 
-    # Garantizar que las tablas existan
-    Base.metadata.create_all(bind=engine)
+    # Garantizar que las tablas existan (tolerante a fallos)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[STARTUP] create_all completado")
+    except Exception as e:
+        print(f"[STARTUP][WARNING] create_all error (se continua): {e}")
     
     # Asegurar usuarios necesarios
     try:
@@ -1115,10 +1119,14 @@ async def lifespan(app: FastAPI):
             ("erik.santiago", "ERIK SANTIAGO GARZON AMEZQUITA", "1094950684"),
             ("superadmin", "SUPERADMIN", "admin123$")
         ]
-        # Clean up conflicting superadmin IDs (like if username='superadmin' had ID 35)
+        # Clean up conflicting superadmin IDs (tolerante a errores de FK)
         from sqlalchemy import text
-        db_s.execute(text("DELETE FROM users WHERE username = 'superadmin' OR id = 9999"))
-        db_s.commit()
+        try:
+            db_s.execute(text("DELETE FROM users WHERE username = 'superadmin' OR id = 9999"))
+            db_s.commit()
+        except Exception as del_err:
+            db_s.rollback()
+            print(f"[STARTUP] No se pudo eliminar superadmin (normal si tiene FK): {del_err}")
 
         # Buscar la empresa de fna_juridica
         fna = db_s.query(User).filter(User.username == "fna_juridica").first()
