@@ -1,21 +1,21 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set the working directory in the container
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    gcc \
+    python3-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy the requirements file into the container at /app
-COPY requirements.txt .
-
-# Install any needed packages specified in requirements.txt
+# Copy requirements
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container at /app
+# Copy all application code
 COPY . .
 
-# Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application
-# We use --host 0.0.0.0 to make it accessible from outside the container
-CMD ["sh", "-c", "python backend/migrate_v3.py && uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1"]
