@@ -10577,3 +10577,18 @@ admin.add_view(CaseAdmin)
 admin.add_view(TaskAdmin)
 admin.add_view(WorkspaceAdmin)
 admin.add_view(IntegrationAdmin)
+
+# ============================================================
+# SERVE REACT FRONTEND (must be LAST - catches all other routes)
+# FastAPI serves static files so we don't need Nginx at all
+# ============================================================
+import os as _os
+from fastapi.staticfiles import StaticFiles
+
+_dist_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "dist")
+if _os.path.exists(_dist_path):
+    app.mount("/", StaticFiles(directory=_dist_path, html=True), name="spa")
+    print(f"[STATIC] Sirviendo frontend React desde: {_dist_path}")
+else:
+    print(f"[STATIC] ADVERTENCIA: directorio dist no encontrado en {_dist_path}")
+
