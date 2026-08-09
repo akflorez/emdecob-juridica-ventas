@@ -1,5 +1,6 @@
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
+import re
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
 from backend.models import Case, CaseEvent, User
@@ -116,6 +117,8 @@ def analyze_case_risk_and_summary(c: Case, events: List[CaseEvent]) -> Dict[str,
         "demandado": c.demandado or "No especificado",
         "juzgado": c.despacho or c.juzgado or "Juzgado / Despacho Judicial",
         "dias_sin_movimiento": dias_inactivo,
+        "ultima_actuacion_date": parsed_ult,
+        "fecha_radicacion_date": parsed_rad,
         "nivel_riesgo": nivel_riesgo,
         "termino_dias_restantes": termino_restante,
         "resumen_ia": resumen_ia,
@@ -186,7 +189,8 @@ def query_ai_processes(
     is_superadmin: bool = False
 ) -> Dict[str, Any]:
     """
-    Ejecuta consultas de Inteligencia Jurídica sobre los casos reales del usuario.
+    Motor Avanzado de Consulta en Lenguaje Natural para el Asistente Jurídico Virtual.
+    Comprende intenciones temporales, procesales, nombres de partes, despachos y riesgos.
     """
     q = db.query(Case).filter(Case.juzgado.isnot(None), or_(Case.is_active == True, Case.is_active.is_(None)))
     if not is_superadmin and company_id:
@@ -194,7 +198,6 @@ def query_ai_processes(
 
     cases = q.order_by(desc(Case.updated_at)).all()
     
-    # Pre-cargar eventos de los casos
     case_ids = [c.id for c in cases]
     events_by_case: Dict[int, List[CaseEvent]] = {cid: [] for cid in case_ids}
     
@@ -209,45 +212,134 @@ def query_ai_processes(
         analyzed = analyze_case_risk_and_summary(c, evs)
         analyzed_items.append(analyzed)
 
-    # Filtrar según query o promptKey
+    now = get_colombia_now().date()
+    current_year = now.year
+    current_month = now.month
+
+    # Normalización del texto de entrada
     q_norm = (query_text or "").strip().lower()
+    # Remover tildes y caracteres especiales para matching flexible
+    q_clean = q_norm.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('¿', '').replace('?', '')
     f_key = (filter_key or "").strip().lower()
 
     filtered: List[Dict[str, Any]] = []
+    analysis_msg = ""
 
-    if f_key == "procesos_sin_movimiento" or any(w in q_norm for w in ["sin movimiento", "congelad", "inactiv", "6 meses", "seis meses", "desistimiento"]):
+    # =========================================================================
+    # 1. INTENCIÓN: MOVIMIENTOS TEMPORALES (ESTE MES, HOY, ESTA SEMANA, RECIENTES)
+    # =========================================================================
+    if any(k in q_clean for k in ["este mes", "mes actual", "ultimo mes", "ultimos 30 dias", "movimiento este mes", "actuaciones este mes", "movimiento en el mes", "agosto", "julio", "junio"]):
+        # Identificar mes específico si se mencionó
+        target_month = current_month
+        month_name = "este mes"
+        if "agosto" in q_clean:
+            target_month = 8
+            month_name = "Agosto"
+        elif "julio" in q_clean:
+            target_month = 7
+            month_name = "Julio"
+        elif "junio" in q_clean:
+            target_month = 6
+            month_name = "Junio"
+
+        filtered = [
+            item for item in analyzed_items
+            if (item.get("ultima_actuacion_date") and item["ultima_actuacion_date"].month == target_month and item["ultima_actuacion_date"].year == current_year)
+            or (item["dias_sin_movimiento"] <= 30 and target_month == current_month)
+        ]
+        analysis_msg = f"📅 **Análisis IA**: Se identificaron {len(filtered)} procesos que registraron actuaciones judiciales en **{month_name}**."
+
+    elif any(k in q_clean for k in ["hoy", "dia de hoy", "actualizados hoy", "movimiento hoy"]):
+        filtered = [
+            item for item in analyzed_items
+            if item.get("ultima_actuacion_date") == now or item["dias_sin_movimiento"] == 0
+        ]
+        analysis_msg = f"⚡ **Análisis IA**: Se identificaron {len(filtered)} procesos actualizados en la fecha de **hoy ({format_date_str(now)})**."
+
+    elif any(k in q_clean for k in ["esta semana", "ultimos 7 dias", "ultimos dias", "recientes", "movimiento reciente"]):
+        filtered = [
+            item for item in analyzed_items
+            if item["dias_sin_movimiento"] <= 7
+        ]
+        analysis_msg = f"⏱️ **Análisis IA**: Se identificaron {len(filtered)} procesos con movimientos registrados en los **últimos 7 días**."
+
+    # =========================================================================
+    # 2. INTENCIÓN: PROCESOS SIN MOVIMIENTO / INACTIVOS / DESISTIMIENTO TÁCITO
+    # =========================================================================
+    elif f_key == "procesos_sin_movimiento" or any(w in q_clean for w in ["sin movimiento", "congelad", "inactiv", "6 meses", "seis meses", "180 dias", "desistimiento", "abandono"]):
         filtered = [item for item in analyzed_items if item["dias_sin_movimiento"] >= 180]
         analysis_msg = f"🔍 **Análisis IA**: Se identificaron {len(filtered)} procesos con más de 180 días sin actuaciones. Se recomienda radicar memorial de impulso procesal urgente para evitar desistimiento tácito (Art. 317 C.G.P.)."
-    
-    elif f_key == "sentencias_desfavorables" or any(w in q_norm for w in ["desfavorable", "sentencia", "fallo", "apelacion"]):
+
+    # =========================================================================
+    # 3. INTENCIÓN: RIESGO ALTO / ATENCIÓN URGENTE / IMPULSO
+    # =========================================================================
+    elif f_key == "atencion_urgente" or any(w in q_clean for w in ["urgente", "atencion", "riesgo alto", "prioritari", "peligro", "alerta", "alarma"]):
+        filtered = [item for item in analyzed_items if item["nivel_riesgo"] == "Alto"]
+        analysis_msg = f"🚨 **Análisis IA**: {len(filtered)} procesos requieren atención prioritaria esta semana debido a inactividad prolongada o términos de notificación."
+
+    # =========================================================================
+    # 4. INTENCIÓN: TÉRMINOS A VENCER / PLAZOS
+    # =========================================================================
+    elif f_key == "terminos_vencer" or any(w in q_clean for w in ["termino", "vencer", "5 dias", "cinco dias", "plazo", "vencimiento"]):
+        filtered = [item for item in analyzed_items if item["termino_dias_restantes"] <= 5 or item["nivel_riesgo"] == "Alto"]
+        analysis_msg = f"⏱️ **Análisis IA**: Se identificaron {len(filtered)} procesos con términos y actuaciones prioritarias en los próximos días hábiles."
+
+    # =========================================================================
+    # 5. INTENCIÓN: SENTENCIAS / DECISIONES JUDICIALES
+    # =========================================================================
+    elif f_key == "sentencias_desfavorables" or any(w in q_clean for w in ["desfavorable", "sentencia", "fallo", "apelacion", "autos relevantes"]):
         filtered = [item for item in analyzed_items if item["tipo_sentencia"] in ("Desfavorables", "Favorables")]
         if not filtered:
             filtered = [item for item in analyzed_items if "AUTO" in item["resumen_ia"].upper() or item["nivel_riesgo"] == "Alto"]
         analysis_msg = f"⚖️ **Análisis IA**: Se evaluaron las decisiones y sentencias judiciales registradas en tu cartera ({len(filtered)} procesos con decisiones relevantes)."
 
-    elif f_key == "atencion_urgente" or any(w in q_norm for w in ["urgente", "atencion", "riesgo alto", "prioritario"]):
-        filtered = [item for item in analyzed_items if item["nivel_riesgo"] == "Alto"]
-        analysis_msg = f"⚠️ **Análisis IA**: {len(filtered)} procesos requieren atención prioritaria esta semana debido a inactividad prolongada o términos de notificación."
-
-    elif f_key == "terminos_vencer" or any(w in q_norm for w in ["termino", "vencer", "5 dias", "cinco dias", "plazo"]):
-        filtered = [item for item in analyzed_items if item["termino_dias_restantes"] <= 5 or item["nivel_riesgo"] == "Alto"]
-        analysis_msg = f"⏱️ **Análisis IA**: Se identificaron {len(filtered)} procesos con términos y actuaciones prioritarias en los próximos días hábiles."
-
-    elif "sic" in q_norm or "superintendencia" in q_norm or "consumidor" in q_norm:
+    # =========================================================================
+    # 6. INTENCIÓN: SIC / CONSUMIDOR
+    # =========================================================================
+    elif "sic" in q_clean or "superintendencia" in q_clean or "consumidor" in q_clean:
         filtered = [item for item in analyzed_items if item["is_sic"]]
         analysis_msg = f"🏢 **Análisis IA**: Se encontraron {len(filtered)} procesos radicados ante la Superintendencia de Industria y Comercio (SIC)."
 
-    elif q_norm:
-        # Búsqueda semántica sobre radicado, partes, juzgado y resumen
-        filtered = [
-            item for item in analyzed_items
-            if q_norm in item["radicado"].lower()
-            or q_norm in item["demandante"].lower()
-            or q_norm in item["demandado"].lower()
-            or q_norm in item["juzgado"].lower()
-            or q_norm in item["resumen_ia"].lower()
-        ]
-        analysis_msg = f"🔎 **Análisis IA**: Se encontraron {len(filtered)} procesos relacionados con tu consulta '{query_text}'."
+    # =========================================================================
+    # 7. INTENCIÓN: MEDIDAS CAUTELARES / EMBARGOS / MANDAMIENTOS
+    # =========================================================================
+    elif any(w in q_clean for w in ["embargo", "cautelar", "medida", "banco", "vehiculo"]):
+        filtered = [item for item in analyzed_items if "EMBARGO" in item["resumen_ia"].upper() or "CAUTELAR" in item["resumen_ia"].upper() or "MEDIDA" in item["resumen_ia"].upper()]
+        analysis_msg = f"🔒 **Análisis IA**: Se encontraron {len(filtered)} procesos con trámites de medidas cautelares u oficios de embargo."
+
+    elif any(w in q_clean for w in ["mandamiento", "pago", "ejecutivo"]):
+        filtered = [item for item in analyzed_items if "MANDAMIENTO" in item["resumen_ia"].upper() or "PAGO" in item["resumen_ia"].upper()]
+        analysis_msg = f"📜 **Análisis IA**: Se encontraron {len(filtered)} procesos ejecutivos con mandamiento de pago registrado."
+
+    # =========================================================================
+    # 8. BÚSQUEDA SEMÁNTICA POR PALABRAS CLAVE / PARTES / JUZGADOS / CIUDADES
+    # =========================================================================
+    elif q_clean:
+        # Filtrar palabras vacías (stop words en español)
+        stopwords = {
+            "cuales", "cual", "que", "los", "las", "el", "la", "de", "del", "en", "con", "por", 
+            "un", "una", "unos", "unas", "tuvieron", "tuvo", "tiene", "tienen", "muestrame", 
+            "dime", "donde", "esta", "estan", "procesos", "radicados", "casos", "hay", "para", 
+            "sobre", "todos", "todas", "algun", "alguna", "mis", "nuestros"
+        }
+        tokens = [w for w in re.split(r'\W+', q_clean) if len(w) >= 3 and w not in stopwords]
+        
+        if tokens:
+            scored_results = []
+            for item in analyzed_items:
+                target_corpus = f"{item['radicado']} {item['demandante']} {item['demandado']} {item['juzgado']} {item['resumen_ia']} {item['recomendacion_ia']}".lower()
+                target_clean = target_corpus.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+                
+                match_count = sum(1 for token in tokens if token in target_clean)
+                if match_count > 0:
+                    scored_results.append((match_count, item))
+                    
+            scored_results.sort(key=lambda x: x[0], reverse=True)
+            filtered = [x[1] for x in scored_results]
+            analysis_msg = f"🔎 **Análisis IA**: Se encontraron {len(filtered)} procesos relacionados con tu consulta '{query_text}'."
+        else:
+            filtered = analyzed_items
+            analysis_msg = f"🤖 **Asistente Jurídico IA**: Mostrando el análisis de {len(filtered)} procesos activos de tu cartera jurídica."
 
     else:
         # Todos los casos analizados por defecto
