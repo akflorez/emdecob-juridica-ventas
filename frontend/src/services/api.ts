@@ -227,9 +227,14 @@ export function downloadEventsByIdExcel(id: number) {
  * -------------------------- */
 export async function downloadMultipleEventsExcel(radicados: string[]) {
   const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const response = await fetch(`${cleanBaseUrl}/cases/events/download-multiple`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(radicados),
   });
 

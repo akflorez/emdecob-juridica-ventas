@@ -4573,7 +4573,7 @@ def list_cases(
         if solo_no_leidos:
             q = q.filter(unread_condition)
         elif solo_leidos:
-            q = q.filter(not_(unread_condition))
+            q = q.filter(~unread_condition)
 
         if solo_actualizados_hoy:
             q = q.filter(Case.ultima_actuacion == today_colombia())
