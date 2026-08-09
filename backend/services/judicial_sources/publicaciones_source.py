@@ -16,43 +16,19 @@ class PublicacionesProcesalesConnector(JudicialSourceConnector):
         if not self.supports(radicado, metadata):
             return {"status": "unsupported", "message": "Formato de radicado no soportado por esta fuente."}
             
-        # Stub diagnostic search (Fase 1 compliance)
-        # Check if manual validation/captcha is simulated
+        # Return not_found when no real scraper data is available, never return fake Demo data
         return {
-            "status": "success",
+            "status": "not_found",
             "source": self.source_name,
             "url": self.base_url,
-            "data": {
-                "radicado": radicado,
-                "despacho": "Juzgado Administrativo de Despacho",
-                "tipo_proceso": "Estados Electrónicos / Traslados",
-                "demandante": "Demandante Demo",
-                "demandado": "Demandado Demo",
-                "estado": "activo"
-            }
+            "message": "No se encontraron publicaciones procesales para este radicado."
         }
         
     def search_events(self, radicado: str, metadata: dict = None) -> list:
-        # Stub list of events
-        return [
-            {
-                "fecha_actuacion": "2026-06-04",
-                "actuacion": "Auto de publicación de estado",
-                "anotacion": "Notificación por estado electrónico",
-                "fecha_registro": "2026-06-04"
-            }
-        ]
+        return []
         
     def search_documents(self, radicado: str, metadata: dict = None) -> list:
-        # Stub list of documents
-        return [
-            {
-                "tipo_documento": "Auto",
-                "nombre_archivo": "auto_admite.pdf",
-                "url_documento": f"{self.base_url}web/publicaciones-procesales/documento/1",
-                "fecha_publicacion": "2026-06-04"
-            }
-        ]
+        return []
         
     def healthcheck(self) -> dict:
         return {
