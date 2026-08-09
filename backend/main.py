@@ -7027,19 +7027,10 @@ async def get_case_publications(
             })
         return res
 
-    if is_sa:
-        serialized_pubs = [serialize_pub(p) for p in pubs]
-    else:
-        serialized_pubs = [serialize_pub(p) for p in pubs if getattr(p, "estado_validacion", "requiere_revision") in ["validado", "validado_automatico", "validado_por_fuente_oficial"]]
-        
-    validadas = [p for p in serialized_pubs if p["estado_validacion"] in ["validado", "validado_automatico", "validado_por_fuente_oficial"]]
-    
-    if is_sa:
-        req_revision = [p for p in serialized_pubs if p["estado_validacion"] == "requiere_revision"]
-        items_res = serialized_pubs
-    else:
-        req_revision = []
-        items_res = validadas
+    serialized_pubs = [serialize_pub(p) for p in pubs]
+    validadas = [p for p in serialized_pubs if p.get("estado_validacion") != "descartado"]
+    req_revision = [p for p in serialized_pubs if p.get("estado_validacion") == "requiere_revision"]
+    items_res = serialized_pubs if is_sa else validadas
     
     return {
         "radicado": radicado,
