@@ -5731,6 +5731,49 @@ async def sync_case_events_background(case_id: int):
         c = db.query(Case).filter(Case.id == case_id).first()
         if not c: return
         
+        # Si es un caso de la SIC (Superintendencia de Industria y Comercio)
+        if c.juzgado == "SIC" or c.fuente_encontrado == "SIC" or bool(re.match(r'^(?:20)?\d{2}-\d+$', str(c.radicado).strip())):
+            try:
+                from backend.services.judicial_sources import CONNECTORS
+                sic_conn = CONNECTORS.get("SIC")
+                meta = {"cedula": c.cedula, "demandante": c.demandante, "demandado": c.demandado, "estado": c.estado}
+                sic_res = sic_conn.search_case(c.radicado, metadata=meta)
+                sic_data = sic_res.get("data", {})
+                
+                acts = sic_data.get("actuaciones", [])
+                for a in acts:
+                    act_date = a.get("fecha")
+                    act_title = (a.get("actuacion") or "Actuación SIC").strip()
+                    act_detail = a.get("anotacion") or ""
+                    ev_hash = sha256_obj({"event_date": act_date, "title": act_title, "detail": act_detail})
+                    
+                    exists = db.query(CaseEvent).filter(
+                        CaseEvent.case_id == c.id,
+                        CaseEvent.event_hash == ev_hash
+                    ).first()
+                    if not exists:
+                        db.add(CaseEvent(
+                            case_id=c.id,
+                            company_id=c.company_id,
+                            event_date=act_date,
+                            title=act_title,
+                            detail=act_detail,
+                            event_hash=ev_hash,
+                            con_documentos=bool(a.get("url_documento"))
+                        ))
+                
+                if acts:
+                    c.ultima_actuacion = parse_fecha(acts[0].get("fecha"))
+                    c.fecha_radicacion = parse_fecha(acts[-1].get("fecha"))
+                    c.has_documents = True
+                    
+                c.last_check_at = now_colombia()
+                db.commit()
+                return
+            except Exception as sic_err:
+                print(f"[SYNC-SIC] Error actualizando caso SIC {c.radicado}: {sic_err}")
+                return
+
         id_proceso = c.id_proceso
         if not id_proceso:
             id_proceso = await obtener_id_proceso(c.radicado)
