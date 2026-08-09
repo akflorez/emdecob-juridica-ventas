@@ -664,8 +664,9 @@ export default function CasosPage() {
 
       await downloadCasesExcel(params);
       toast({ title: "Descargando...", description: "El archivo Excel se descargará en unos segundos" });
-    } catch (error) {
-      toast({ title: "Error", description: "No se pudo generar el archivo", variant: "destructive" });
+    } catch (error: any) {
+      const msg = error?.detail ? (typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)) : (error?.message || "No se pudo generar el archivo");
+      toast({ title: "Error", description: msg, variant: "destructive" });
     }
   };
 
@@ -1049,7 +1050,12 @@ export default function CasosPage() {
                   </Button>
                 </>
               )}
-              {activeTab !== "pendientes" && total > 0 && (
+              {activeTab === "no_encontrados" && invalidTotal > 0 && (
+                <Button variant="outline" size="sm" onClick={() => handleDownloadExcel()}>
+                  <Download className="h-4 w-4 mr-2" />Exportar
+                </Button>
+              )}
+              {activeTab !== "pendientes" && activeTab !== "no_encontrados" && total > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">

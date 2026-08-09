@@ -4679,6 +4679,7 @@ def list_cases(
 # =========================
 # CASES DOWNLOAD EXCEL
 # =========================
+@app.get("/api/cases/download")
 @app.get("/cases/download")
 def download_cases_excel(
     db: Session = Depends(get_db),

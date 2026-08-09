@@ -387,7 +387,7 @@ export function getAbogados() {
 /** ---------------------------
  * DESCARGAR CASOS EXCEL
  * -------------------------- */
-export function downloadCasesExcel(params: {
+export async function downloadCasesExcel(params: {
   search?: string;
   juzgado?: string;
   abogado?: string;
@@ -401,7 +401,6 @@ export function downloadCasesExcel(params: {
   page_size?: number;
   ignore_filters?: boolean;
 }) {
-  const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
   const qs = new URLSearchParams();
   if (params.search) qs.set("search", params.search);
   if (params.juzgado) qs.set("juzgado", params.juzgado);
@@ -417,14 +416,25 @@ export function downloadCasesExcel(params: {
   if (params.company_id !== undefined) qs.set("company_id", String(params.company_id));
   const q = qs.toString();
   const token = getToken();
-  const downloadUrl = `${cleanBaseUrl}/cases/download?${q}${token ? `&token=${token}` : ""}`;
-  
+
+  const res = await fetch(`/api/cases/download?${q}${token ? `&token=${token}` : ""}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Error al exportar casos");
+  }
+
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = downloadUrl;
-  link.target = "_blank";
+  link.download = `casos_juricob_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  window.URL.revokeObjectURL(downloadUrl);
 }
 
 /** ---------------------------
@@ -563,17 +573,26 @@ export function retryInvalidRadicado(id: number) {
   );
 }
 
-export function downloadInvalidRadicadosExcel() {
-  const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+export async function downloadInvalidRadicadosExcel() {
   const token = getToken();
-  const downloadUrl = `${cleanBaseUrl}/invalid-radicados/download${token ? `?token=${token}` : ""}`;
-  
+  const res = await fetch(`/api/invalid-radicados/download${token ? `?token=${token}` : ""}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Error al exportar radicados no encontrados");
+  }
+
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = downloadUrl;
-  link.target = "_blank";
+  link.download = `radicados_no_encontrados_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  window.URL.revokeObjectURL(downloadUrl);
 }
 
 /** ---------------------------
