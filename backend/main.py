@@ -6737,8 +6737,9 @@ async def get_event_documents(
 
 
 # =========================
-# DESCARGA DE DOCUMENTO (PROXY A RAMA JUDICIAL)
+# DESCARGA DE DOCUMENTO (PROXY A RAMA JUDICIAL O REDIRECCION SIC)
 # =========================
+@app.get("/api/documentos/{id_documento}/descargar")
 @app.get("/documentos/{id_documento}/descargar")
 async def descargar_documento_endpoint(
     id_documento: int,
@@ -6755,18 +6756,20 @@ async def descargar_documento_endpoint(
 
     associated_case = None
     associated_event = None
+    target_doc = None
 
     for event, case in candidates:
         if event.documentos_cache:
             try:
                 docs = json.loads(event.documentos_cache)
                 for doc in docs:
-                    doc_id = doc.get("idDocumento") or doc.get("idRegistroDocumento") or doc.get("id")
+                    doc_id = doc.get("idDocumento") or doc.get("idRegistroDocumento") or doc.get("id") or doc.get("idRegDocumento")
                     if doc_id is not None:
                         try:
                             if int(doc_id) == id_documento:
                                 associated_case = case
                                 associated_event = event
+                                target_doc = doc
                                 break
                         except ValueError:
                             pass
@@ -6782,6 +6785,11 @@ async def descargar_documento_endpoint(
     if not is_global_superadmin(current_user):
         if associated_case.company_id != current_user.company_id:
             raise HTTPException(status_code=403, detail="Acceso denegado. Propiedad de empresa no válida.")
+
+    # Si es documento de la SIC o tiene URL directa
+    if target_doc and target_doc.get("url"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=target_doc["url"])
 
     url_rama = f"{RAMA_BASE}/Descarga/Documento/{id_documento}"
     print(f" Descargando documento ID={id_documento}  {url_rama}")

@@ -1201,9 +1201,10 @@ export default function CasoDetailPage() {
                                             doc.fecha        ||
                                             '';
 
-                                          const downloadUrl = docId
-                                            ? `${cleanBaseUrl}/documentos/${docId}/descargar`
-                                            : null;
+                                          const authToken = localStorage.getItem("token") || localStorage.getItem("access_token");
+                                          const downloadUrl = doc.url 
+                                            ? doc.url 
+                                            : (docId ? `${cleanBaseUrl}/documentos/${docId}/descargar${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}` : null);
 
                                           return (
                                             <div
@@ -1228,15 +1229,10 @@ export default function CasoDetailPage() {
                                                   target="_blank"
                                                   rel="noopener noreferrer"
                                                   className="inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 flex-shrink-0"
-                                                  onClick={() =>
-                                                    toast({
-                                                      title: 'Descargando PDF',
-                                                      description: 'El documento se abrirá en una nueva pestaña',
-                                                    })
-                                                  }
+                                                  onClick={() => toast({ title: "Abriendo documento", description: "El documento oficial se abrirá en una nueva pestaña" })}
                                                 >
-                                                  <Download className="h-4 w-4" />
-                                                  Descargar PDF
+                                                  <FileDown className="h-4 w-4" />
+                                                  Ver / Descargar PDF
                                                 </a>
                                               ) : (
                                                 <Button disabled size="sm" variant="outline">
