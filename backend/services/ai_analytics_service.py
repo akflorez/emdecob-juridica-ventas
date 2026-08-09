@@ -126,13 +126,14 @@ def analyze_case_risk_and_summary(c: Case, events: List[CaseEvent]) -> Dict[str,
 
 def get_company_ai_dashboard_stats(db: Session, company_id: Optional[int], is_superadmin: bool = False) -> Dict[str, Any]:
     """
-    Retorna métricas consolidadas en tiempo real para el Tablero de IA.
+    Retorna métricas consolidadas en tiempo real para el Tablero de IA, calculadas
+    exactamente con el mismo motor de analítica que las consultas filtradas.
     """
     q = db.query(Case).filter(Case.juzgado.isnot(None), or_(Case.is_active == True, Case.is_active.is_(None)))
     if not is_superadmin and company_id:
         q = q.filter(Case.company_id == company_id)
         
-    all_cases = q.all()
+    all_cases = q.order_by(desc(Case.updated_at)).all()
     total_count = len(all_cases)
     
     if total_count == 0:
@@ -145,31 +146,27 @@ def get_company_ai_dashboard_stats(db: Session, company_id: Optional[int], is_su
             "summary_text": "No hay procesos activos en el sistema para analizar. Sube tu cartera en Importar Excel."
         }
 
-    now = get_colombia_now().date()
-    inactive_6m = 0
-    high_risk = 0
-    upcoming_terms = 0
+    case_ids = [c.id for c in all_cases]
+    events_by_case: Dict[int, List[CaseEvent]] = {cid: [] for cid in case_ids}
+    if case_ids:
+        all_events = db.query(CaseEvent).filter(CaseEvent.case_id.in_(case_ids)).order_by(desc(CaseEvent.event_date)).all()
+        for ev in all_events:
+            events_by_case[ev.case_id].append(ev)
 
+    analyzed_items: List[Dict[str, Any]] = []
     for c in all_cases:
-        parsed_ult = safe_parse_date(c.ultima_actuacion)
-        parsed_rad = safe_parse_date(c.fecha_radicacion)
-        created_date = c.created_at.date() if c.created_at else now
-        ref_date = parsed_ult or parsed_rad or created_date
-        dias = (now - ref_date).days if ref_date else 0
-        
-        if dias >= 180:
-            inactive_6m += 1
-            high_risk += 1
-        elif dias >= 90:
-            high_risk += 1
-            
-        if dias <= 10 or (dias >= 180):
-            upcoming_terms += 1
+        evs = events_by_case.get(c.id, [])
+        analyzed = analyze_case_risk_and_summary(c, evs)
+        analyzed_items.append(analyzed)
+
+    inactive_6m = sum(1 for item in analyzed_items if item["dias_sin_movimiento"] >= 180)
+    high_risk = sum(1 for item in analyzed_items if item["nivel_riesgo"] == "Alto")
+    upcoming_terms = sum(1 for item in analyzed_items if item["termino_dias_restantes"] <= 5 or item["nivel_riesgo"] == "Alto")
 
     summary_text = (
         f"El motor de IA analizó {total_count} procesos activos en tu cartera. "
         f"Se identificaron {inactive_6m} procesos con más de 6 meses de inactividad que requieren memorial de impulso prioritario, "
-        f"y {high_risk} procesos bajo categoría de seguimiento prioritario."
+        f"y {high_risk} procesos bajo categoría de riesgo alto procesal."
     )
 
     return {
