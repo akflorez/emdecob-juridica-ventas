@@ -71,6 +71,7 @@ import {
   refreshAllCases,
   syncAllPublications,
   downloadCasesExcel,
+  downloadInvalidRadicadosExcel,
   getInvalidRadicados,
   deleteInvalidRadicado,
   retryInvalidRadicado,
