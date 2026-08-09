@@ -7,8 +7,8 @@ from backend.models import Case, CaseEvent, CasePublication, CaseSearchSourceRes
 from backend.services.judicial_sources import CONNECTORS
 from backend.services.judicial_sources.normalizer import normalize_case_result
 
-# Configuration flags for untested/unimplemented fallback connectors
-FALLBACK_TYBA_ENABLED = False
+# Configuration flags for fallback connectors
+FALLBACK_TYBA_ENABLED = True
 FALLBACK_SIUGJ_ENABLED = False
 FALLBACK_SAMAI_ENABLED = False
 

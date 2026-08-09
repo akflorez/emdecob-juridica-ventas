@@ -2677,6 +2677,73 @@ async def validar_radicado_completo(radicado: str, db: Session, is_new_import: b
         items = []
 
     if not items:
+        # Fallback 1: Buscar en Publicaciones Procesales / Estados Electrónicos (Instructivo Rama Judicial)
+        try:
+            from backend.service.publicaciones import consultar_publicaciones, parse_radicado
+            pubs = await consultar_publicaciones(radicado)
+            if pubs:
+                first_pub = pubs[0]
+                c = db.query(Case).filter(Case.radicado == radicado).first()
+                if not c:
+                    c = Case(radicado=radicado)
+                    db.add(c)
+                    db.flush()
+                c.despacho = first_pub.get("despacho") or c.despacho or "Despacho Judicial de Publicaciones"
+                c.juzgado = c.despacho
+                if first_pub.get("demandante") and not c.demandante: c.demandante = first_pub["demandante"]
+                if first_pub.get("demandado") and not c.demandado: c.demandado = first_pub["demandado"]
+                c.fuente_encontrado = "PUBLICACIONES_PROCESALES"
+                c.encontrado_en_fuente_alternativa = True
+                c.estado = "Publicado en Estados Electrónicos"
+                if first_pub.get("fecha_publicacion"):
+                    c.ultima_actuacion = parse_fecha(first_pub["fecha_publicacion"])
+                c.last_check_at = now_colombia()
+                
+                # Guardar publicación en case_publications
+                from backend.models import CasePublication
+                doc_url = first_pub.get("documento_url")
+                source_id = hashlib.md5((doc_url or f"{radicado}_{first_pub.get('fecha_publicacion')}").encode()).hexdigest()
+                exists_pub = db.query(CasePublication).filter(CasePublication.case_id == c.id, CasePublication.source_id == source_id).first()
+                if not exists_pub:
+                    db.add(CasePublication(
+                        case_id=c.id,
+                        company_id=c.company_id,
+                        fecha_publicacion=parse_fecha(first_pub.get("fecha_publicacion")),
+                        tipo_publicacion=first_pub.get("tipo_publicacion") or "Publicación Procesal",
+                        descripcion=first_pub.get("descripcion") or "Estado Electrónico",
+                        documento_url=doc_url,
+                        source_id=source_id,
+                        estado_validacion="validado",
+                        match_score=100
+                    ))
+                db.flush()
+                return {"found": True, "case": c}
+        except Exception as e_pub:
+            print(f"[FALLBACK-PUBLICACIONES] Error en {radicado}: {e_pub}")
+
+        # Fallback 2: Buscar en TYBA / Justicia XXI Web
+        try:
+            from backend.services.judicial_sources import CONNECTORS
+            tyba = CONNECTORS.get("TYBA")
+            if tyba:
+                tyba_res = tyba.search_case(radicado)
+                if tyba_res.get("status") == "success":
+                    tdata = tyba_res.get("data", {})
+                    c = db.query(Case).filter(Case.radicado == radicado).first()
+                    if not c:
+                        c = Case(radicado=radicado)
+                        db.add(c)
+                        db.flush()
+                    c.fuente_encontrado = "TYBA"
+                    c.encontrado_en_fuente_alternativa = True
+                    c.despacho = tdata.get("despacho") or c.despacho or "Despacho TYBA"
+                    c.juzgado = c.despacho
+                    c.last_check_at = now_colombia()
+                    db.flush()
+                    return {"found": True, "case": c}
+        except Exception as e_tyba:
+            print(f"[FALLBACK-TYBA] Error en {radicado}: {e_tyba}")
+
         return {"found": False, "case": None}
 
     p = items[0] or {}
