@@ -7,16 +7,47 @@ from backend.models import Case, CaseEvent, User
 def get_colombia_now() -> datetime:
     return datetime.utcnow() - timedelta(hours=5)
 
+def safe_parse_date(d) -> Optional[date]:
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    if isinstance(d, str):
+        s = d.strip()
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except:
+            pass
+        try:
+            return datetime.strptime(s[:10], "%d/%m/%Y").date()
+        except:
+            pass
+    return None
+
+def format_date_str(d) -> str:
+    if not d:
+        return "Reciente"
+    if isinstance(d, (datetime, date)):
+        return d.strftime("%d/%m/%Y")
+    if isinstance(d, str):
+        p = safe_parse_date(d)
+        if p:
+            return p.strftime("%d/%m/%Y")
+        return d[:10]
+    return "Reciente"
+
 def analyze_case_risk_and_summary(c: Case, events: List[CaseEvent]) -> Dict[str, Any]:
     """
     Motor de analítica jurídica y cálculo de riesgo procesal (Código General del Proceso Colombiano).
     """
     now = get_colombia_now().date()
-    ref_date = c.ultima_actuacion or c.fecha_radicacion or (c.created_at.date() if c.created_at else now)
+    parsed_ult = safe_parse_date(c.ultima_actuacion)
+    parsed_rad = safe_parse_date(c.fecha_radicacion)
+    created_date = c.created_at.date() if c.created_at else now
     
-    if isinstance(ref_date, datetime):
-        ref_date = ref_date.date()
-        
+    ref_date = parsed_ult or parsed_rad or created_date
     dias_inactivo = (now - ref_date).days if ref_date else 0
     if dias_inactivo < 0:
         dias_inactivo = 0
@@ -61,12 +92,13 @@ def analyze_case_risk_and_summary(c: Case, events: List[CaseEvent]) -> Dict[str,
 
     # Resumen estructurado
     if latest_event:
-        fecha_str = latest_event.event_date.strftime("%d/%m/%Y") if latest_event.event_date else "Reciente"
+        fecha_str = format_date_str(latest_event.event_date)
         resumen_ia = f"Última actuación ({fecha_str}): {latest_title}. {latest_detail[:180]}".strip()
     elif c.estado:
         resumen_ia = f"Estado actual: {c.estado}. Despacho: {c.despacho or c.juzgado or 'Despacho asignado'}."
     else:
-        resumen_ia = f"Proceso radicado el {c.fecha_radicacion or 'Fecha pendiente'}. En espera de fijación de primera actuación judicial."
+        fecha_rad_str = format_date_str(c.fecha_radicacion)
+        resumen_ia = f"Proceso radicado ({fecha_rad_str}). En espera de fijación de primera actuación judicial."
 
     # Tipo de Sentencia / Estado
     if "SENTENCIA" in full_latest_text or "FALLO" in full_latest_text:
@@ -119,9 +151,10 @@ def get_company_ai_dashboard_stats(db: Session, company_id: Optional[int], is_su
     upcoming_terms = 0
 
     for c in all_cases:
-        ref_date = c.ultima_actuacion or c.fecha_radicacion or (c.created_at.date() if c.created_at else now)
-        if isinstance(ref_date, datetime):
-            ref_date = ref_date.date()
+        parsed_ult = safe_parse_date(c.ultima_actuacion)
+        parsed_rad = safe_parse_date(c.fecha_radicacion)
+        created_date = c.created_at.date() if c.created_at else now
+        ref_date = parsed_ult or parsed_rad or created_date
         dias = (now - ref_date).days if ref_date else 0
         
         if dias >= 180:
