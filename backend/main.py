@@ -5360,8 +5360,14 @@ async def get_case_by_id(case_id: int, db: Session = Depends(get_db), current_us
     if not c:
         raise HTTPException(404, "Caso no encontrado")
         
-    if not is_global_superadmin(current_user) and c.company_id != current_user.company_id:
-        raise HTTPException(403, "No tienes acceso a este caso")
+    if not is_global_superadmin(current_user):
+        if c.company_id != current_user.company_id:
+            if (c.company_id in (1, None) or c.company_id is None) and current_user.company_id:
+                c.company_id = current_user.company_id
+                c.user_id = current_user.id
+                db.commit()
+            else:
+                raise HTTPException(403, "No tienes acceso a este caso")
         
     return serialize_case(c)
 
@@ -5547,24 +5553,18 @@ async def get_case_by_radicado_endpoint(
     if not r:
         raise HTTPException(400, "Radicado inv?lido")
 
-    # Multi-tenancy filter para búsqueda individual
-    is_jurico = "jurico" in current_user.username.lower() or current_user.id == 2 or current_user.username == "juricob"
-
     # 1. Buscar en BD local
     existing_items = db.query(Case).filter(Case.radicado == r).all()
     if existing_items:
         local_results = []
         for c in existing_items:
-            # Si es Jurico, ve sus casos. Si es FNA, ve los de FNA.
-            visible = False
-            if is_jurico:
-                if c.user_id == 2 or c.user_id == current_user.id: visible = True
-            else:
-                # Otros (FNA) solo ven si es explícitamente FNA o no es de Jurico
-                if _es_fna(c.demandante or "") or (c.user_id != 2 and c.user_id != 1): visible = True
-                if c.user_id == 1: visible = True
-            
-            if visible:
+            # Multi-tenancy check / Auto-linking
+            if is_global_superadmin(current_user) or c.company_id == current_user.company_id or (c.company_id in (1, None) and current_user.company_id):
+                if c.company_id != current_user.company_id and current_user.company_id:
+                    c.company_id = current_user.company_id
+                    c.user_id = current_user.id
+                    db.commit()
+                
                 local_results.append({
                     "id": c.id,
                     "radicado": c.radicado,
@@ -5575,7 +5575,7 @@ async def get_case_by_radicado_endpoint(
                     "note": "Caso encontrado en el sistema local."
                 })
         
-        # Ordenar local por fecha m?s reciente
+        # Ordenar local por fecha más reciente
         local_results.sort(key=lambda x: x['fecha_radicacion'] or '', reverse=True)
         if local_results:
             return local_results
@@ -5634,56 +5634,27 @@ async def get_case_by_radicado_endpoint(
         results = await asyncio.gather(*[fetch_process_data(p) for p in items[:15]])
         
         # FILTRO DINÁMICO: Preferir FNA o TRIADA para usuarios FNA, o mostrar todo para Jurico
+        is_jurico = "jurico" in current_user.username.lower() or current_user.id == 2 or current_user.username == "juricob"
         filtered_results = results
         if not is_jurico:
             filtered_results = [r for r in results if _es_fna(r.get("demandante", ""))]
             if not filtered_results:
                 filtered_results = results
         
-        # Mapeamos casos existentes y visibles por id_proceso para evitar duplicados
-        visible_existing_by_id_proceso = {}
-        for c_db in existing_items:
-            visible = False
-            if is_jurico:
-                if c_db.user_id == 2 or c_db.user_id == current_user.id: visible = True
-            else:
-                if _es_fna(c_db.demandante or "") or (c_db.user_id != 2 and c_db.user_id != 1): visible = True
-                if c_db.user_id == 1: visible = True
-            
-            if visible and c_db.id_proceso:
-                visible_existing_by_id_proceso[c_db.id_proceso] = c_db
-
         saved_results = []
         for r_item in filtered_results:
             id_proceso_str = str(r_item["id_proceso"]) if r_item["id_proceso"] else None
             
-            c = None
-            if id_proceso_str and id_proceso_str in visible_existing_by_id_proceso:
-                c = visible_existing_by_id_proceso[id_proceso_str]
-            
-            if not c and not id_proceso_str:
-                # Si no tiene id_proceso, buscar por radicado con la misma lógica de visibilidad
-                for existing_case in existing_items:
-                    visible = False
-                    if is_jurico:
-                        if existing_case.user_id == 2 or existing_case.user_id == current_user.id: visible = True
-                    else:
-                        if _es_fna(existing_case.demandante or "") or (existing_case.user_id != 2 and existing_case.user_id != 1): visible = True
-                        if existing_case.user_id == 1: visible = True
-                    if visible:
-                        c = existing_case
-                        break
-
+            c = db.query(Case).filter(Case.id_proceso == id_proceso_str).first() if id_proceso_str else None
             if not c:
-                # Crear el caso en la base de datos
                 c = Case(
                     radicado=r_item["radicado"],
                     id_proceso=id_proceso_str,
                     demandante=r_item["demandante"],
                     demandado=r_item["demandado"],
                     juzgado=r_item["juzgado"],
-                    fecha_radicacion=parse_fecha(r_item["fecha_radicacion"]) if isinstance(r_item["fecha_radicacion"], str) else r_item["fecha_radicacion"],
-                    ultima_actuacion=parse_fecha(r_item["ultima_actuacion"]) if isinstance(r_item["ultima_actuacion"], str) else r_item["ultima_actuacion"],
+                    fecha_radicacion=parse_fecha(r_item["fecha_radicacion"]),
+                    ultima_actuacion=parse_fecha(r_item["ultima_actuacion"]),
                     company_id=current_user.company_id if current_user else None,
                     user_id=current_user.id if current_user else None,
                     last_check_at=now_colombia()
@@ -5691,7 +5662,6 @@ async def get_case_by_radicado_endpoint(
                 db.add(c)
                 db.flush()
                 
-                # Guardar las actuaciones iniciales
                 acts = r_item.get("actuaciones", [])
                 if acts:
                     for a in acts:
@@ -5699,25 +5669,16 @@ async def get_case_by_radicado_endpoint(
                         it = {
                             "id_reg_actuacion": a.get("idRegActuacion"),
                             "cons_actuacion": a.get("consActuacion"),
-                            "llave_proceso": a.get("llaveProceso"),
-                            "event_date": a.get("fechaActuacion"),
-                            "title": (a.get("actuacion") or "").strip(),
-                            "detail": a.get("anotacion"),
-                            "fecha_inicio": a.get("fechaInicial"),
-                            "fecha_fin": a.get("fechaFinal"),
+                            "fecha_actuacion": a.get("fechaActuacion"),
+                            "actuacion": a.get("actuacion"),
+                            "anotacion": a.get("anotacion"),
+                            "fecha_inicial": a.get("fechaInicial"),
+                            "fecha_final": a.get("fechaFinal"),
                             "fecha_registro": a.get("fechaRegistro"),
                             "con_documentos": con_docs,
-                            "cant": a.get("cant"),
+                            "cant_documentos": 1 if con_docs else 0
                         }
-                        event_hash = sha256_obj(it)
-                        db.add(CaseEvent(
-                            case_id=c.id,
-                            event_date=it.get("event_date"),
-                            title=it.get("title"),
-                            detail=it.get("detail"),
-                            event_hash=event_hash,
-                            con_documentos=con_docs,
-                        ))
+                        save_event(db, c.id, it, company_id=current_user.company_id if current_user else None)
                         if con_docs:
                             c.has_documents = True
                     db.flush()
@@ -5763,13 +5724,19 @@ async def get_events_by_id(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    q_case = db.query(Case).filter(Case.id == case_id)
-    if not is_global_superadmin(current_user):
-        q_case = q_case.filter(Case.company_id == current_user.company_id)
-        
-    c = q_case.first()
+    c = db.query(Case).filter(Case.id == case_id).first()
     if not c:
         raise HTTPException(404, "Caso no encontrado")
+        
+    if not is_global_superadmin(current_user):
+        if c.company_id != current_user.company_id:
+            if (c.company_id in (1, None) or c.company_id is None) and current_user.company_id:
+                c.company_id = current_user.company_id
+                c.user_id = current_user.id
+                db.commit()
+            else:
+                raise HTTPException(403, "No tienes acceso a este caso")
+                
     return await events_logic(c, db)
 
 @app.get("/api/cases/by-radicado/{radicado}/events")
