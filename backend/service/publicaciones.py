@@ -1478,11 +1478,7 @@ async def consultar_publicaciones_rango(
             async def process_candidate(cand):
                 async with sem:
                     try:
-                        cand_date = parse_fecha_pub(cand["fecha_publicacion"])
-                        if cand_date and fecha_act_min:
-                            if cand_date < fecha_act_min and year == fecha_act_min.year and month == fecha_act_min.month:
-                                print(f"[scraper] Descartando {cand['title']}: fecha {cand['fecha_publicacion']} anterior a actuación {fecha_act_str} en el mismo mes.")
-                                return None
+                        cand_date = parse_fecha_pub(cand.get("fecha_publicacion"))
 
                         print(f"[scraper] Obteniendo detalle de: {cand['detail_url']}")
                         detail_resp = await client.get(cand["detail_url"])
