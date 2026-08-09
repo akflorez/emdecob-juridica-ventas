@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, 
   Bot, 
@@ -20,7 +20,8 @@ import {
   Filter,
   RefreshCw,
   Info,
-  Loader2
+  Loader2,
+  ArrowRight
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,8 +37,10 @@ import {
 
 export default function TableroIAPage() {
   const { toast } = useToast();
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
+  const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
   
@@ -115,6 +118,9 @@ export default function TableroIAPage() {
         title: "Análisis IA Completado",
         description: `Se encontraron ${res.count} procesos coincidentes en tu cartera.`,
       });
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     } catch (error: any) {
       toast({
         title: "Error en consulta IA",
@@ -130,6 +136,7 @@ export default function TableroIAPage() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     
+    setSelectedKpi(null);
     setActivePrompt(searchQuery);
     setIsAiAnalyzing(true);
 
@@ -137,6 +144,9 @@ export default function TableroIAPage() {
       const res = await queryAIProcesses(searchQuery, "");
       setFilteredData(res.cases || []);
       setAiAnalysisSummary(res.summary);
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     } catch (error: any) {
       toast({
         title: "Error en búsqueda",
@@ -149,6 +159,7 @@ export default function TableroIAPage() {
   };
 
   const handleResetFilters = async () => {
+    setSelectedKpi('todos');
     setActivePrompt(null);
     setSearchQuery('');
     await loadRealAIData();
@@ -156,6 +167,9 @@ export default function TableroIAPage() {
       title: "Filtros restablecidos",
       description: "Mostrando todos los procesos analizados de tu cartera."
     });
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const handleOpenCaseDetail = (caseId: number) => {
@@ -194,62 +208,131 @@ export default function TableroIAPage() {
         </div>
       </div>
 
-      {/* KPI Cards (Métricas Clave de IA Reales) */}
+      {/* KPI Cards (Métricas Clave de IA Reales e Interactivas) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <Card className="border-emerald-500/20 bg-card hover:border-emerald-500/50 transition-all shadow-md">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Términos a Vencer</p>
-              <h3 className="text-3xl font-extrabold text-amber-500 mt-1">
-                {isLoadingInitial ? "..." : stats.upcoming_terms_count}
-              </h3>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">⚠️ Próximos 5 días hábiles</p>
+        
+        {/* Card 1: Términos a Vencer */}
+        <Card 
+          onClick={() => {
+            setSelectedKpi('terminos');
+            handleQuerySelect('terminos_vencer', 'Términos a Vencer (Próximos 5 días hábiles)');
+          }}
+          className={`cursor-pointer transition-all duration-200 transform hover:-translate-y-1 hover:shadow-xl ${
+            selectedKpi === 'terminos'
+              ? 'border-amber-500 ring-2 ring-amber-500/50 bg-amber-500/10'
+              : 'border-amber-500/20 bg-card hover:border-amber-500/60'
+          }`}
+        >
+          <CardContent className="p-6 flex flex-col justify-between h-full space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Términos a Vencer</p>
+                <h3 className="text-3xl font-extrabold text-amber-500 mt-1">
+                  {isLoadingInitial ? "..." : stats.upcoming_terms_count}
+                </h3>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">⚠️ Próximos 5 días hábiles</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 flex-shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
-              <Clock className="w-6 h-6" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-emerald-500/20 bg-card hover:border-emerald-500/50 transition-all shadow-md">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Riesgo Alto Procesal</p>
-              <h3 className="text-3xl font-extrabold text-red-500 mt-1">
-                {isLoadingInitial ? "..." : stats.high_risk_count}
-              </h3>
-              <p className="text-xs text-red-500 mt-1 font-medium">🚨 Requieren impulso prioritario</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-emerald-500/20 bg-card hover:border-emerald-500/50 transition-all shadow-md">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inactivos &gt; 6 Meses</p>
-              <h3 className="text-3xl font-extrabold text-indigo-500 mt-1">
-                {isLoadingInitial ? "..." : stats.inactive_over_6_months}
-              </h3>
-              <p className="text-xs text-indigo-500 mt-1 font-medium">❄️ Sin movimiento en Rama</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-500">
-              <BrainCircuit className="w-6 h-6" />
+            <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-bold">
+              <span>👉 Ver cuáles son</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-500/20 bg-card hover:border-emerald-500/50 transition-all shadow-md">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resúmenes Generados</p>
-              <h3 className="text-3xl font-extrabold text-emerald-500 mt-1">100%</h3>
-              <p className="text-xs text-emerald-500 mt-1 font-medium">✨ Síntesis automática por IA</p>
+        {/* Card 2: Riesgo Alto */}
+        <Card 
+          onClick={() => {
+            setSelectedKpi('riesgo');
+            handleQuerySelect('atencion_urgente', 'Procesos con Riesgo Alto Procesal');
+          }}
+          className={`cursor-pointer transition-all duration-200 transform hover:-translate-y-1 hover:shadow-xl ${
+            selectedKpi === 'riesgo'
+              ? 'border-red-500 ring-2 ring-red-500/50 bg-red-500/10'
+              : 'border-red-500/20 bg-card hover:border-red-500/60'
+          }`}
+        >
+          <CardContent className="p-6 flex flex-col justify-between h-full space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Riesgo Alto Procesal</p>
+                <h3 className="text-3xl font-extrabold text-red-500 mt-1">
+                  {isLoadingInitial ? "..." : stats.high_risk_count}
+                </h3>
+                <p className="text-xs text-red-500 mt-1 font-medium">🚨 Requieren impulso prioritario</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 flex-shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500">
-              <Sparkles className="w-6 h-6" />
+            <div className="pt-2 border-t border-red-500/20 flex items-center justify-between text-xs text-red-500 font-bold">
+              <span>👉 Ver cuáles son</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Inactivos > 6 Meses */}
+        <Card 
+          onClick={() => {
+            setSelectedKpi('inactivos');
+            handleQuerySelect('procesos_sin_movimiento', 'Procesos Inactivos > 6 Meses');
+          }}
+          className={`cursor-pointer transition-all duration-200 transform hover:-translate-y-1 hover:shadow-xl ${
+            selectedKpi === 'inactivos'
+              ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-500/10'
+              : 'border-indigo-500/20 bg-card hover:border-indigo-500/60'
+          }`}
+        >
+          <CardContent className="p-6 flex flex-col justify-between h-full space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inactivos &gt; 6 Meses</p>
+                <h3 className="text-3xl font-extrabold text-indigo-500 mt-1">
+                  {isLoadingInitial ? "..." : stats.inactive_over_6_months}
+                </h3>
+                <p className="text-xs text-indigo-500 mt-1 font-medium">❄️ Sin movimiento en Rama</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-500 flex-shrink-0">
+                <BrainCircuit className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-indigo-500/20 flex items-center justify-between text-xs text-indigo-500 font-bold">
+              <span>👉 Ver cuáles son</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: Resúmenes Generados / Todos */}
+        <Card 
+          onClick={() => {
+            setSelectedKpi('resumenes');
+            handleResetFilters();
+          }}
+          className={`cursor-pointer transition-all duration-200 transform hover:-translate-y-1 hover:shadow-xl ${
+            selectedKpi === 'resumenes'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-500/10'
+              : 'border-emerald-500/20 bg-card hover:border-emerald-500/60'
+          }`}
+        >
+          <CardContent className="p-6 flex flex-col justify-between h-full space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resúmenes Generados</p>
+                <h3 className="text-3xl font-extrabold text-emerald-500 mt-1">100%</h3>
+                <p className="text-xs text-emerald-500 mt-1 font-medium">✨ Síntesis automática por IA</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 flex-shrink-0">
+                <Sparkles className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-emerald-500/20 flex items-center justify-between text-xs text-emerald-500 font-bold">
+              <span>👉 Ver todos ({stats.total_analyzed})</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </CardContent>
         </Card>
@@ -342,7 +425,7 @@ export default function TableroIAPage() {
       </Card>
 
       {/* TABLA Y CARDS DE RESULTADOS ANALIZADOS POR IA */}
-      <div className="space-y-4">
+      <div ref={resultsRef} className="space-y-4 pt-2">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold font-serif-juricob text-foreground flex items-center gap-2">
             <Scale className="w-6 h-6 text-emerald-500" />
