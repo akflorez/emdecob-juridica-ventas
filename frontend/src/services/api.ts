@@ -1281,3 +1281,49 @@ export function updateCaseActiveStatus(caseId: number, isActive: boolean, motivo
     body: JSON.stringify({ is_active: isActive, motivo }),
   });
 }
+
+/** ---------------------------
+ * TABLERO IA & ANALÍTICA JURÍDICA
+ * -------------------------- */
+export type AIDashboardStatsResponse = {
+  total_analyzed: number;
+  inactive_over_6_months: number;
+  high_risk_count: number;
+  upcoming_terms_count: number;
+  ai_summaries_pct: number;
+  summary_text: string;
+};
+
+export type AIProcessItem = {
+  id: number;
+  radicado: string;
+  demandante: string;
+  demandado: string;
+  juzgado: string;
+  dias_sin_movimiento: number;
+  nivel_riesgo: "Alto" | "Medio" | "Bajo";
+  termino_dias_restantes: number;
+  resumen_ia: string;
+  recomendacion_ia: string;
+  tipo_sentencia?: "Favorables" | "Desfavorables" | "En Trámite";
+  is_sic?: boolean;
+};
+
+export type AIQueryResponse = {
+  summary: string;
+  count: number;
+  total_analyzed: number;
+  cases: AIProcessItem[];
+};
+
+export function getAIDashboardStats() {
+  return apiFetch<AIDashboardStatsResponse>("/ai/dashboard-stats");
+}
+
+export function queryAIProcesses(query: string = "", filterKey: string = "") {
+  return apiFetch<AIQueryResponse>("/ai/query", {
+    method: "POST",
+    body: JSON.stringify({ query, filter_key: filterKey }),
+  });
+}
+

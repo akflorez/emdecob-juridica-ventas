@@ -10924,6 +10924,33 @@ admin.add_view(WorkspaceAdmin)
 admin.add_view(IntegrationAdmin)
 
 # ============================================================
+# TABLERO IA & ANALYTICS JURÍDICO
+# ============================================================
+class AIQueryRequest(BaseModel):
+    query: Optional[str] = ""
+    filter_key: Optional[str] = ""
+
+@app.get("/api/ai/dashboard-stats")
+@app.get("/ai/dashboard-stats")
+def get_ai_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from backend.services.ai_analytics_service import get_company_ai_dashboard_stats
+    is_sa = is_global_superadmin(current_user)
+    return get_company_ai_dashboard_stats(db, current_user.company_id, is_superadmin=is_sa)
+
+@app.post("/api/ai/query")
+@app.post("/ai/query")
+def post_ai_query(body: AIQueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from backend.services.ai_analytics_service import query_ai_processes
+    is_sa = is_global_superadmin(current_user)
+    return query_ai_processes(
+        db,
+        current_user.company_id,
+        query_text=body.query or "",
+        filter_key=body.filter_key or "",
+        is_superadmin=is_sa
+    )
+
+# ============================================================
 # SERVE REACT FRONTEND (must be LAST - catches all other routes)
 # FastAPI serves static files so we don't need Nginx at all
 # ============================================================
