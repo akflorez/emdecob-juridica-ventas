@@ -199,7 +199,12 @@ export default function ImportarPage() {
                         size="sm" 
                         className="h-8 gap-2"
                         onClick={() => {
-                          const list = importResult.skipped_list?.map(r => ({ radicado: r, motivo: "Omitido en la importación / Ya existe" })) || [];
+                          const list = (importResult.skipped_list && importResult.skipped_list.length > 0)
+                            ? importResult.skipped_list.map((r: any) => ({
+                                radicado: typeof r === 'string' ? r : (r.radicado || "Sin radicado"),
+                                motivo: typeof r === 'object' && r.motivo ? r.motivo : "Omitido en la importación / Formato incompleto o vacío"
+                              }))
+                            : [{ radicado: "Filas omitidas", motivo: `${importResult.skipped} fila(s) vacías o con longitud insuficiente` }];
                           downloadInvalidReport(list);
                         }}
                       >

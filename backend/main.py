@@ -6451,14 +6451,17 @@ async def import_excel(
 
         # Limpiar y preparar filas
         rows_to_process = []
+        skipped_list = []
         for index, row in df.iterrows():
             raw_rad = row.get(rad_col)
-            if pd.isna(raw_rad) or raw_rad is None:
+            if pd.isna(raw_rad) or raw_rad is None or not str(raw_rad).strip():
+                skipped_list.append({"radicado": f"Fila {index+2} (vacía)", "motivo": "Celda de radicado vacía"})
                 continue
             radicado = str(raw_rad).strip().replace(".0", "")
             # Limpiar caracteres invisibles o de control pero conservar guiones de SIC (ej: 26-64018)
             radicado = re.sub(r'[\s\x00-\x1f\x7f-\x9f]', '', radicado)
             if not radicado or len(radicado) < 4:
+                skipped_list.append({"radicado": str(raw_rad), "motivo": f"Radicado con longitud insuficiente ({len(radicado)} caracteres)"})
                 continue
 
             def get_val(col_name):
@@ -6495,12 +6498,11 @@ async def import_excel(
                 "is_sic": is_sic
             })
 
-        if not rows_to_process:
+        if not rows_to_process and not skipped_list:
             raise HTTPException(400, "No se encontraron radicados válidos en el archivo.")
 
         created = 0
         updated = 0
-        skipped = 0
         comp_id = current_user.company_id
         user_id = current_user.id
 
@@ -6613,7 +6615,7 @@ async def import_excel(
                     except Exception as single_err:
                         db.rollback()
                         print(f"[import-excel] Fila {item.get('radicado')} omitida por error: {single_err}")
-                        skipped += 1
+                        skipped_list.append({"radicado": item.get("radicado", "Fila"), "motivo": str(single_err)})
 
         # Disparar validacion asincrona en segundo plano si hay nuevos casos
         if created > 0:
@@ -6623,8 +6625,9 @@ async def import_excel(
             "ok": True,
             "created": created,
             "updated": updated,
-            "skipped": skipped,
-            "invalid_count": 0
+            "skipped": len(skipped_list),
+            "skipped_list": skipped_list,
+            "invalid_count": len(skipped_list)
         }
     except HTTPException:
         raise

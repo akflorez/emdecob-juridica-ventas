@@ -257,6 +257,7 @@ export type ImportExcelResponse = {
   created: number;
   updated: number;
   skipped: number;
+  skipped_list?: Array<{ radicado: string; motivo: string } | string>;
   invalid_count: number;
   message?: string;
 };
