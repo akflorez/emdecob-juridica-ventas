@@ -45,6 +45,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getInvalidRadicados,
   deleteInvalidRadicado,
+  deleteAllInvalidRadicados,
   retryInvalidRadicado,
   downloadInvalidRadicadosExcel,
   type InvalidRadicado,
@@ -167,6 +168,25 @@ export default function NoEncontradosPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!confirm(`¿Eliminar TODOS los ${total} radicados no encontrados?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+      const res = await deleteAllInvalidRadicados();
+      toast({
+        title: "Eliminados",
+        description: res.message || "Se eliminaron todos los radicados no encontrados",
+      });
+      fetchData();
+    } catch (error: any) {
+      const msg = error?.detail ? (typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)) : (error?.message || "Error al eliminar");
+      toast({
+        title: "Error",
+        description: msg,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDownload = () => {
     downloadInvalidRadicadosExcel();
     toast({
@@ -186,10 +206,16 @@ export default function NoEncontradosPage() {
         </div>
 
         {total > 0 && (
-          <Button onClick={handleDownload} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Descargar Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleDownload} variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Excel
+            </Button>
+            <Button onClick={handleDeleteAll} variant="destructive">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar todos
+            </Button>
+          </div>
         )}
       </div>
 
