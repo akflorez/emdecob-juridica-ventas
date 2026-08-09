@@ -89,13 +89,32 @@ class PublicacionesProcesalesConnector(JudicialSourceConnector):
                             validation = validate_strong_match(doc_text, clean_rad, demandante, demandado)
                             
                             doc_upper = doc_text.upper()
-                            is_match = (
-                                validation.is_valid or
+                            c_yr = clean_rad[12:16]
+                            c_num = clean_rad[16:21] # 00167
+                            c_int = str(int(c_num)) # 167
+                            
+                            has_strict_consec = (
                                 proc_consec in doc_upper or
                                 formatted_proc in doc_upper or
-                                (demandado and demandado.upper() in doc_upper) or
-                                (cedula and str(cedula) in doc_upper)
+                                f"{c_yr[2:]}-{c_num}" in doc_upper or
+                                f"{c_yr}-{c_int}" in doc_upper or
+                                f"{c_int} - {c_yr}" in doc_upper or
+                                f"{c_int}-{c_yr}" in doc_upper
                             )
+                            
+                            dem_words = [w for w in (demandado or "").upper().split() if len(w) > 3]
+                            has_demandado_full = False
+                            if len(dem_words) >= 2:
+                                for i in range(len(dem_words) - 1):
+                                    if f"{dem_words[i]} {dem_words[i+1]}" in doc_upper:
+                                        has_demandado_full = True
+                                        break
+                            elif len(dem_words) == 1:
+                                has_demandado_full = (demandante or "").upper() in doc_upper and dem_words[0] in doc_upper
+                                
+                            has_cedula = bool(cedula and len(str(cedula).strip()) >= 6 and str(cedula).strip() in doc_upper)
+                            
+                            is_match = has_strict_consec or (has_cedula and has_demandado_full) or (has_demandado_full and (demandante or "").upper() in doc_upper)
                             
                             if is_match:
                                 found_pubs.append({
