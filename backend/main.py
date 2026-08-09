@@ -6281,6 +6281,8 @@ async def import_excel(
         batch_size = 100
         for i in range(0, len(rows_to_process), batch_size):
             batch = rows_to_process[i:i+batch_size]
+            batch_created = 0
+            batch_updated = 0
             
             try:
                 for item in batch:
@@ -6297,7 +6299,7 @@ async def import_excel(
                             if item["demandante"] and not c.demandante: c.demandante = item["demandante"]
                             if item["demandado"] and not c.demandado: c.demandado = item["demandado"]
                             if item["juzgado"] and not c.juzgado: c.juzgado = item["juzgado"]
-                        updated += 1
+                        batch_updated += 1
                     else:
                         # Limpiar de invalid_radicados si existia en la misma empresa
                         try:
@@ -6322,9 +6324,11 @@ async def import_excel(
                             is_active=True
                         )
                         db.add(new_case)
-                        created += 1
+                        batch_created += 1
 
                 db.commit()
+                created += batch_created
+                updated += batch_updated
             except Exception as batch_err:
                 db.rollback()
                 print(f"[import-excel] Lote {i//batch_size + 1} falló en bloque: {batch_err}. Reintentando fila por fila...")
