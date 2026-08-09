@@ -6202,84 +6202,169 @@ async def import_excel(
     try:
         name = (file.filename or "").lower()
         if not name.endswith((".xlsx", ".xls", ".csv")):
-            raise HTTPException(400, "Sube un archivo .xlsx, .xls o .csv")
+            raise HTTPException(400, "Sube un archivo .xlsx, .xls o .csv válido.")
 
         content = await file.read()
         is_csv = name.endswith(".csv")
 
         # Parsear DataFrame
-        if is_csv:
-            df = pd.read_csv(BytesIO(content))
-        else:
-            df = pd.read_excel(BytesIO(content))
+        try:
+            if is_csv:
+                df = pd.read_csv(BytesIO(content), dtype=str)
+            else:
+                df = pd.read_excel(BytesIO(content), dtype=str)
+        except Exception as read_err:
+            raise HTTPException(400, f"No se pudo leer el archivo Excel/CSV: {str(read_err)}")
+
+        if df.empty:
+            raise HTTPException(400, "El archivo subido está vacío.")
 
         df.columns = [str(c).strip() for c in df.columns]
         cols_lower = {c.lower(): c for c in df.columns}
-        rad_col = next((cols_lower[k] for k in ["radicado", "numero", "proceso"] if k in cols_lower), None)
-        ced_col = next((cols_lower[k] for k in ["cedula", "identificacion", "documento"] if k in cols_lower), None)
-        abo_col = next((cols_lower[k] for k in ["abogado", "apoderado"] if k in cols_lower), None)
+        
+        rad_col = next((cols_lower[k] for k in ["radicado", "numero", "proceso", "num_proceso", "radicacion"] if k in cols_lower), None)
+        ced_col = next((cols_lower[k] for k in ["cedula", "identificacion", "documento", "nit", "cc"] if k in cols_lower), None)
+        abo_col = next((cols_lower[k] for k in ["abogado", "apoderado", "responsable", "asignado"] if k in cols_lower), None)
+        dte_col = next((cols_lower[k] for k in ["demandante", "actor", "solicitante"] if k in cols_lower), None)
+        dda_col = next((cols_lower[k] for k in ["demandado", "contraparte", "demandados"] if k in cols_lower), None)
+        juz_col = next((cols_lower[k] for k in ["juzgado", "despacho", "autoridad", "tribunal"] if k in cols_lower), None)
 
         if not rad_col:
-            raise HTTPException(400, "Falta la columna 'Radicado' en el archivo.")
+            raise HTTPException(400, "Falta la columna 'Radicado' en el archivo Excel.")
 
         # Limpiar y preparar filas
         rows_to_process = []
         for index, row in df.iterrows():
-            radicado = clean_str(row.get(rad_col))
-            if not radicado:
+            raw_rad = row.get(rad_col)
+            if pd.isna(raw_rad) or raw_rad is None:
                 continue
-            cedula = str(row.get(ced_col)).strip() if ced_col and pd.notna(row.get(ced_col)) else None
-            abogado = str(row.get(abo_col)).strip() if abo_col and pd.notna(row.get(abo_col)) else None
-            
-            if cedula and (cedula.lower() == "nan" or cedula == ""): 
-                cedula = None
-            if abogado and (abogado.lower() == "nan" or abogado == ""): 
-                abogado = None
+            radicado = str(raw_rad).strip().replace(".0", "")
+            # Limpiar caracteres invisibles o de control
+            radicado = re.sub(r'[\s\x00-\x1f\x7f-\x9f]', '', radicado)
+            if not radicado or len(radicado) < 5:
+                continue
+
+            def get_val(col_name):
+                if not col_name:
+                    return None
+                val = row.get(col_name)
+                if pd.isna(val) or val is None:
+                    return None
+                s = str(val).strip().replace(".0", "")
+                return s if s and s.lower() not in ("nan", "none", "null", "") else None
+
+            cedula = get_val(ced_col)
+            abogado = get_val(abo_col)
+            demandante = get_val(dte_col)
+            demandado = get_val(dda_col)
+            juzgado = get_val(juz_col)
                 
-            rows_to_process.append((radicado, cedula, abogado))
+            rows_to_process.append({
+                "radicado": radicado,
+                "cedula": cedula,
+                "abogado": abogado,
+                "demandante": demandante,
+                "demandado": demandado,
+                "juzgado": juzgado
+            })
+
+        if not rows_to_process:
+            raise HTTPException(400, "No se encontraron radicados válidos en el archivo.")
 
         created = 0
         updated = 0
         skipped = 0
         comp_id = current_user.company_id
+        user_id = current_user.id
 
-        # Procesamos las filas
-        for radicado, cedula, abogado in rows_to_process:
+        # Procesamiento seguro por lotes (batches de 100)
+        batch_size = 100
+        for i in range(0, len(rows_to_process), batch_size):
+            batch = rows_to_process[i:i+batch_size]
+            
             try:
-                # Tenant isolation en busqueda de caso
-                q_case = db.query(Case).filter(Case.radicado == radicado)
-                if comp_id:
-                    q_case = q_case.filter(Case.company_id == comp_id)
-                existing_cases = q_case.all()
-                
-                if existing_cases:
-                    for c in existing_cases:
-                        c.cedula = cedula or c.cedula
-                        c.abogado = abogado or c.abogado
-                    updated += 1
-                else:
-                    # Limpiar de invalid_radicados si existia en la misma empresa
-                    q_inv = db.query(InvalidRadicado).filter(InvalidRadicado.radicado == radicado)
+                for item in batch:
+                    rad = item["radicado"]
+                    q_case = db.query(Case).filter(Case.radicado == rad)
                     if comp_id:
-                        q_inv = q_inv.filter(InvalidRadicado.company_id == comp_id)
-                    existing_invalid = q_inv.first()
-                    if existing_invalid:
-                        db.delete(existing_invalid)
-                        db.flush()
+                        q_case = q_case.filter(Case.company_id == comp_id)
+                    existing_cases = q_case.all()
 
-                    db.add(Case(
-                        radicado=radicado, 
-                        cedula=cedula, 
-                        abogado=abogado, 
-                        user_id=current_user.id,
-                        company_id=comp_id
-                    ))
-                    created += 1
-            except Exception as row_err:
-                print(f"Error procesando fila {radicado}: {row_err}")
-                skipped += 1
+                    if existing_cases:
+                        for c in existing_cases:
+                            if item["cedula"]: c.cedula = item["cedula"]
+                            if item["abogado"]: c.abogado = item["abogado"]
+                            if item["demandante"] and not c.demandante: c.demandante = item["demandante"]
+                            if item["demandado"] and not c.demandado: c.demandado = item["demandado"]
+                            if item["juzgado"] and not c.juzgado: c.juzgado = item["juzgado"]
+                        updated += 1
+                    else:
+                        # Limpiar de invalid_radicados si existia en la misma empresa
+                        try:
+                            q_inv = db.query(InvalidRadicado).filter(InvalidRadicado.radicado == rad)
+                            if comp_id:
+                                q_inv = q_inv.filter(InvalidRadicado.company_id == comp_id)
+                            existing_invalid = q_inv.first()
+                            if existing_invalid:
+                                db.delete(existing_invalid)
+                        except Exception:
+                            pass
 
-        db.commit()
+                        new_case = Case(
+                            radicado=rad,
+                            cedula=item["cedula"],
+                            abogado=item["abogado"],
+                            demandante=item["demandante"],
+                            demandado=item["demandado"],
+                            juzgado=item["juzgado"],
+                            user_id=user_id,
+                            company_id=comp_id,
+                            is_active=True
+                        )
+                        db.add(new_case)
+                        created += 1
+
+                db.commit()
+            except Exception as batch_err:
+                db.rollback()
+                print(f"[import-excel] Lote {i//batch_size + 1} falló en bloque: {batch_err}. Reintentando fila por fila...")
+                # Reintento seguro fila por fila para rescatar todas las filas válidas del lote
+                for item in batch:
+                    try:
+                        rad = item["radicado"]
+                        q_case = db.query(Case).filter(Case.radicado == rad)
+                        if comp_id:
+                            q_case = q_case.filter(Case.company_id == comp_id)
+                        existing_cases = q_case.all()
+
+                        if existing_cases:
+                            for c in existing_cases:
+                                if item["cedula"]: c.cedula = item["cedula"]
+                                if item["abogado"]: c.abogado = item["abogado"]
+                                if item["demandante"] and not c.demandante: c.demandante = item["demandante"]
+                                if item["demandado"] and not c.demandado: c.demandado = item["demandado"]
+                                if item["juzgado"] and not c.juzgado: c.juzgado = item["juzgado"]
+                            db.commit()
+                            updated += 1
+                        else:
+                            new_case = Case(
+                                radicado=rad,
+                                cedula=item["cedula"],
+                                abogado=item["abogado"],
+                                demandante=item["demandante"],
+                                demandado=item["demandado"],
+                                juzgado=item["juzgado"],
+                                user_id=user_id,
+                                company_id=comp_id,
+                                is_active=True
+                            )
+                            db.add(new_case)
+                            db.commit()
+                            created += 1
+                    except Exception as single_err:
+                        db.rollback()
+                        print(f"[import-excel] Fila {item.get('radicado')} omitida por error: {single_err}")
+                        skipped += 1
 
         # Disparar validacion asincrona en segundo plano si hay nuevos casos
         if created > 0:
@@ -6298,7 +6383,7 @@ async def import_excel(
         db.rollback()
         import traceback
         traceback.print_exc()
-        raise HTTPException(500, f"Error al importar archivo: {str(e)}")
+        raise HTTPException(500, f"Error al procesar el archivo Excel: {str(e)[:200]}")
 
 
 @app.get("/cases/import-excel/status/{job_id}")
