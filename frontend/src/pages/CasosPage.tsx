@@ -473,11 +473,12 @@ export default function CasosPage() {
     setIsDeletingAll(true);
     try {
       const result = await deleteAllInvalidRadicados();
-      toast({ title: "Eliminados", description: result.message });
+      toast({ title: "Eliminados", description: result.message || "Radicados no encontrados eliminados correctamente." });
       await fetchInvalidRadicados();
       await fetchStats();
     } catch (error: any) {
-      toast({ title: "Error eliminando", description: error?.message || "Error desconocido", variant: "destructive" });
+      const msg = error?.detail ? (typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)) : (error?.message || "Error desconocido");
+      toast({ title: "Error eliminando", description: msg, variant: "destructive" });
     } finally {
       setIsDeletingAll(false);
     }
@@ -493,7 +494,8 @@ export default function CasosPage() {
       await fetchCases();
       await fetchStats();
     } catch (error: any) {
-      toast({ title: "Error eliminando", description: error?.message || "Error desconocido", variant: "destructive" });
+      const msg = error?.detail ? (typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)) : (error?.message || "Error desconocido");
+      toast({ title: "Error eliminando", description: msg, variant: "destructive" });
     } finally {
       setIsDeletingCase(false);
     }
@@ -693,7 +695,8 @@ export default function CasosPage() {
       fetchInvalidRadicados();
       fetchStats();
     } catch (error: any) {
-      toast({ title: "Error", description: error?.message || "Error al eliminar", variant: "destructive" });
+      const msg = error?.detail ? (typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)) : (error?.message || "Error al eliminar");
+      toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }

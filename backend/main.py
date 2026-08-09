@@ -4213,6 +4213,7 @@ def send_manual_notification(db: Session = Depends(get_db)):
 # =========================
 # INVALID RADICADOS
 # =========================
+@app.get("/api/invalid-radicados")
 @app.get("/invalid-radicados")
 def list_invalid_radicados(
     db: Session = Depends(get_db),
@@ -4257,6 +4258,7 @@ def list_invalid_radicados(
         "page_size": page_size,
     }
 
+@app.delete("/api/invalid-radicados/{radicado_id}")
 @app.delete("/invalid-radicados/{radicado_id}")
 def delete_invalid_radicado(radicado_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     item = db.query(InvalidRadicado).filter(InvalidRadicado.id == radicado_id).first()
@@ -4266,8 +4268,9 @@ def delete_invalid_radicado(radicado_id: int, db: Session = Depends(get_db), cur
         raise HTTPException(403, "No tienes permiso para eliminar este radicado inválido")
     db.delete(item)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "message": "Radicado eliminado correctamente"}
 
+@app.get("/api/invalid-radicados/download")
 @app.get("/invalid-radicados/download")
 def download_invalid_radicados_excel(
     db: Session = Depends(get_db),
@@ -4284,7 +4287,7 @@ def download_invalid_radicados_excel(
             "Motivo": x.motivo,
             "Intentos": x.intentos,
             "Fecha Registro": x.created_at.strftime("%Y-%m-%d %H:%M") if x.created_at else "",
-            "ltimo Intento": x.updated_at.strftime("%Y-%m-%d %H:%M") if x.updated_at else "",
+            "Último Intento": x.updated_at.strftime("%Y-%m-%d %H:%M") if x.updated_at else "",
         }
         for x in items
     ]
@@ -4315,6 +4318,7 @@ def download_invalid_radicados_excel(
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+@app.post("/api/invalid-radicados/{radicado_id}/retry")
 @app.post("/invalid-radicados/{radicado_id}/retry")
 async def retry_invalid_radicado(
     radicado_id: int,
@@ -4352,6 +4356,7 @@ async def retry_invalid_radicado(
         db.commit()
         return {"ok": True, "found": False, "message": "Radicado sigue sin encontrarse en ninguna fuente oficial"}
 
+@app.post("/api/invalid-radicados/retry-all")
 @app.post("/invalid-radicados/retry-all")
 async def retry_all_invalid_radicados(
     db: Session = Depends(get_db),
@@ -4359,7 +4364,10 @@ async def retry_all_invalid_radicados(
     delay_seconds: float = Query(default=0.5, ge=0.1, le=5),
 ):
     from backend.service.fallback_search import search_radicado_with_fallbacks
-    items = db.query(InvalidRadicado).order_by(InvalidRadicado.id).all()
+    q = db.query(InvalidRadicado)
+    if not is_global_superadmin(current_user):
+        q = q.filter(InvalidRadicado.company_id == current_user.company_id)
+    items = q.order_by(InvalidRadicado.id).all()
     if not items:
         return {"ok": True, "processed": 0, "found": 0, "still_not_found": 0, "remaining": 0, "message": "No hay radicados para reintentar"}
 
@@ -4392,7 +4400,10 @@ async def retry_all_invalid_radicados(
             still_not_found += 1
 
     db.commit()
-    remaining = db.query(InvalidRadicado).count()
+    q_rem = db.query(InvalidRadicado)
+    if not is_global_superadmin(current_user):
+        q_rem = q_rem.filter(InvalidRadicado.company_id == current_user.company_id)
+    remaining = q_rem.count()
 
     return {
         "ok": True,
@@ -4403,6 +4414,7 @@ async def retry_all_invalid_radicados(
         "message": f"Procesados {len(items)}: {found} validados, {still_not_found} no encontrados. Quedan {remaining}."
     }
 
+@app.post("/api/invalid-radicados/retry-batch")
 @app.post("/invalid-radicados/retry-batch")
 async def retry_batch_invalid_radicados(
     db: Session = Depends(get_db),
@@ -4410,7 +4422,10 @@ async def retry_batch_invalid_radicados(
     batch_size: int = Query(default=20, ge=1, le=100),
 ):
     from backend.service.fallback_search import search_radicado_with_fallbacks
-    items = db.query(InvalidRadicado).order_by(InvalidRadicado.id).limit(batch_size).all()
+    q = db.query(InvalidRadicado)
+    if not is_global_superadmin(current_user):
+        q = q.filter(InvalidRadicado.company_id == current_user.company_id)
+    items = q.order_by(InvalidRadicado.id).limit(batch_size).all()
     if not items:
         return {"ok": True, "processed": 0, "found": 0, "still_not_found": 0, "remaining": 0, "message": "No hay radicados para reintentar"}
 
@@ -4442,7 +4457,10 @@ async def retry_batch_invalid_radicados(
             still_not_found += 1
 
     db.commit()
-    remaining = db.query(InvalidRadicado).count()
+    q_rem = db.query(InvalidRadicado)
+    if not is_global_superadmin(current_user):
+        q_rem = q_rem.filter(InvalidRadicado.company_id == current_user.company_id)
+    remaining = q_rem.count()
 
     return {
         "ok": True,
@@ -4453,10 +4471,14 @@ async def retry_batch_invalid_radicados(
         "message": f"Procesados {len(items)}: {found} validados, {still_not_found} no encontrados. Quedan {remaining}."
     }
 
+@app.delete("/api/invalid-radicados/delete-all")
 @app.delete("/invalid-radicados/delete-all")
-def delete_all_invalid_radicados(db: Session = Depends(get_db)):
-    count = db.query(InvalidRadicado).count()
-    db.query(InvalidRadicado).delete()
+def delete_all_invalid_radicados(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(InvalidRadicado)
+    if not is_global_superadmin(current_user):
+        q = q.filter(InvalidRadicado.company_id == current_user.company_id)
+    count = q.count()
+    q.delete(synchronize_session=False)
     db.commit()
     return {"ok": True, "deleted": count, "message": f"Se eliminaron {count} radicados no encontrados."}
 
