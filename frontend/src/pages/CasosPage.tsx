@@ -98,6 +98,7 @@ type FilterTab = "todos" | "pendientes" | "no_leidos" | "leidos" | "hoy" | "no_e
 
 const generateMonthOptions = () => {
   const options = [];
+  options.push({ value: "sin_fecha", label: "Sin fecha (Sin actuación)" });
   const now = new Date();
   for (let i = 0; i < 24; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);

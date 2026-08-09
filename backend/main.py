@@ -4601,12 +4601,15 @@ def list_cases(
             q = q.filter(Case.has_documents == con_documentos)
 
         if mes_actuacion:
-            try:
-                year, month = mes_actuacion.split("-")
-                from sqlalchemy import extract
-                q = q.filter(extract('year', Case.ultima_actuacion) == int(year), extract('month', Case.ultima_actuacion) == int(month))
-            except:
-                pass
+            if mes_actuacion in ("sin_fecha", "null", "none"):
+                q = q.filter(Case.ultima_actuacion.is_(None))
+            else:
+                try:
+                    year, month = mes_actuacion.split("-")
+                    from sqlalchemy import extract
+                    q = q.filter(extract('year', Case.ultima_actuacion) == int(year), extract('month', Case.ultima_actuacion) == int(month))
+                except:
+                    pass
 
         total = q.count()
 
@@ -4638,8 +4641,9 @@ def list_cases(
         items = (
             q.order_by(
                 unread_order,
-                desc(Case.ultima_actuacion),
-                desc(Case.updated_at)
+                desc(Case.ultima_actuacion).nullslast(),
+                desc(Case.fecha_radicacion).nullslast(),
+                desc(Case.id)
             )
             .offset((page - 1) * page_size)
             .limit(page_size)
@@ -4747,20 +4751,23 @@ def download_cases_excel(
                     q = q.filter(Case.abogado.ilike(f"%{val}%"))
 
             if mes_actuacion:
-                try:
-                    year, month = mes_actuacion.split("-")
-                    from sqlalchemy import extract
-                    q = q.filter(extract('year', Case.ultima_actuacion) == int(year), extract('month', Case.ultima_actuacion) == int(month))
-                except:
-                    pass
+                if mes_actuacion in ("sin_fecha", "null", "none"):
+                    q = q.filter(Case.ultima_actuacion.is_(None))
+                else:
+                    try:
+                        year, month = mes_actuacion.split("-")
+                        from sqlalchemy import extract
+                        q = q.filter(extract('year', Case.ultima_actuacion) == int(year), extract('month', Case.ultima_actuacion) == int(month))
+                    except:
+                        pass
         else:
             if solo_retirados:
                 q = q.filter(Case.is_active == False)
             else:
                 q = q.filter(or_(Case.is_active == True, Case.is_active.is_(None)))
 
-        # Ordenar por última actuación descendente
-        q = q.order_by(desc(Case.ultima_actuacion))
+        # Ordenar por última actuación descendente con nulos de últimos
+        q = q.order_by(desc(Case.ultima_actuacion).nullslast(), desc(Case.id))
 
         # Paginación
         if not ignore_filters and page is not None and page_size is not None:
