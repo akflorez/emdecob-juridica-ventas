@@ -4261,14 +4261,18 @@ def list_invalid_radicados(
 @app.delete("/api/invalid-radicados/{radicado_id}")
 @app.delete("/invalid-radicados/{radicado_id}")
 def delete_invalid_radicado(radicado_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    item = db.query(InvalidRadicado).filter(InvalidRadicado.id == radicado_id).first()
-    if not item:
-        raise HTTPException(404, "Radicado no encontrado")
-    if not is_global_superadmin(current_user) and item.company_id != current_user.company_id:
-        raise HTTPException(403, "No tienes permiso para eliminar este radicado inválido")
-    db.delete(item)
-    db.commit()
-    return {"ok": True, "message": "Radicado eliminado correctamente"}
+    try:
+        from sqlalchemy import text
+        comp_id = current_user.company_id
+        if is_global_superadmin(current_user):
+            db.execute(text("DELETE FROM invalid_radicados WHERE id = :id;"), {"id": radicado_id})
+        else:
+            db.execute(text("DELETE FROM invalid_radicados WHERE id = :id AND company_id = :cid;"), {"id": radicado_id, "cid": comp_id})
+        db.commit()
+        return {"ok": True, "message": "Radicado eliminado correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error al eliminar radicado no encontrado: {str(e)}")
 
 @app.get("/api/invalid-radicados/download")
 @app.get("/invalid-radicados/download")
@@ -4474,13 +4478,18 @@ async def retry_batch_invalid_radicados(
 @app.delete("/api/invalid-radicados/delete-all")
 @app.delete("/invalid-radicados/delete-all")
 def delete_all_invalid_radicados(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    q = db.query(InvalidRadicado)
-    if not is_global_superadmin(current_user):
-        q = q.filter(InvalidRadicado.company_id == current_user.company_id)
-    count = q.count()
-    q.delete(synchronize_session=False)
-    db.commit()
-    return {"ok": True, "deleted": count, "message": f"Se eliminaron {count} radicados no encontrados."}
+    try:
+        from sqlalchemy import text
+        comp_id = current_user.company_id
+        if is_global_superadmin(current_user):
+            res = db.execute(text("DELETE FROM invalid_radicados;"))
+        else:
+            res = db.execute(text("DELETE FROM invalid_radicados WHERE company_id = :cid;"), {"cid": comp_id})
+        db.commit()
+        return {"ok": True, "message": "Se eliminaron todos los radicados no encontrados correctamente."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error al eliminar radicados no encontrados: {str(e)}")
 
 
 # =========================
