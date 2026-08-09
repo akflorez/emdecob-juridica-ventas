@@ -349,6 +349,7 @@ export type GetCasesParams = {
   solo_validos?: boolean;
   solo_pendientes?: boolean;
   solo_no_leidos?: boolean;
+  solo_leidos?: boolean;
   solo_actualizados_hoy?: boolean;
   solo_retirados?: boolean;
   con_documentos?: boolean;
@@ -366,6 +367,7 @@ export function getCases(params: GetCasesParams) {
   if (params.solo_validos !== undefined) qs.set("solo_validos", String(params.solo_validos));
   if (params.solo_pendientes) qs.set("solo_pendientes", "true");
   if (params.solo_no_leidos) qs.set("solo_no_leidos", "true");
+  if (params.solo_leidos) qs.set("solo_leidos", "true");
   if (params.solo_actualizados_hoy) qs.set("solo_actualizados_hoy", "true");
   if (params.solo_retirados) qs.set("solo_retirados", "true");
   if (params.con_documentos !== undefined) qs.set("con_documentos", String(params.con_documentos));
@@ -464,6 +466,13 @@ export function markCaseUnread(caseId: number) {
  * -------------------------- */
 export function markReadBulk(caseIds: number[]) {
   return apiFetch<{ ok: boolean; updated: number }>("/cases/mark-read-bulk", {
+    method: "POST",
+    body: JSON.stringify({ case_ids: caseIds }),
+  });
+}
+
+export function markUnreadBulk(caseIds: number[]) {
+  return apiFetch<{ ok: boolean; updated: number }>("/cases/mark-unread-bulk", {
     method: "POST",
     body: JSON.stringify({ case_ids: caseIds }),
   });

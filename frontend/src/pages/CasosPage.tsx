@@ -66,6 +66,8 @@ import {
   getCases,
   markCaseRead,
   markCaseUnread,
+  markReadBulk,
+  markUnreadBulk,
   markReadAll,
   downloadMultipleEventsExcel,
   refreshAllCases,
@@ -92,7 +94,7 @@ import {
 } from "@/services/api";
 import { LawyerCombobox } from "@/components/LawyerCombobox";
 
-type FilterTab = "todos" | "pendientes" | "no_leidos" | "hoy" | "no_encontrados" | "retirados";
+type FilterTab = "todos" | "pendientes" | "no_leidos" | "leidos" | "hoy" | "no_encontrados" | "retirados";
 
 const generateMonthOptions = () => {
   const options = [];
@@ -243,6 +245,7 @@ export default function CasosPage() {
         solo_validos: activeTab !== "pendientes" && activeTab !== "retirados",
         solo_pendientes: activeTab === "pendientes",
         solo_no_leidos: activeTab === "no_leidos",
+        solo_leidos: activeTab === "leidos",
         solo_actualizados_hoy: activeTab === "hoy",
         solo_retirados: activeTab === "retirados",
         cedula: appliedCedula,
@@ -531,6 +534,34 @@ export default function CasosPage() {
       fetchStats();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "No se pudo cambiar el estado", variant: "destructive" });
+    }
+  };
+
+  const handleMarkSelectedRead = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedIds);
+      await markReadBulk(ids);
+      setRows((prev) => prev.map((x) => (selectedIds.has(x.id) ? { ...x, unread: false } : x)));
+      setSelectedIds(new Set());
+      fetchStats();
+      toast({ title: "Casos marcados como leídos", description: `Se actualizaron ${ids.length} procesos.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "No se pudo marcar como leídos", variant: "destructive" });
+    }
+  };
+
+  const handleMarkSelectedUnread = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedIds);
+      await markUnreadBulk(ids);
+      setRows((prev) => prev.map((x) => (selectedIds.has(x.id) ? { ...x, unread: true } : x)));
+      setSelectedIds(new Set());
+      fetchStats();
+      toast({ title: "Casos marcados como no leídos", description: `Se marcaron ${ids.length} procesos como no leídos.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "No se pudo marcar como no leídos", variant: "destructive" });
     }
   };
 
@@ -895,10 +926,18 @@ export default function CasosPage() {
           </Button>
 
           <Button variant={activeTab === "no_leidos" ? "default" : "outline"} className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => handleTabChange("no_leidos")}>
-            <Bell className="h-6 w-6 text-primary" />
+            <Mail className="h-6 w-6 text-primary" />
             <div className="text-center">
               <div className="text-sm font-medium">Sin Leer</div>
               <div className="text-lg font-bold opacity-90">{stats?.total_no_leidos || 0}</div>
+            </div>
+          </Button>
+
+          <Button variant={activeTab === "leidos" ? "default" : "outline"} className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => handleTabChange("leidos")}>
+            <MailOpen className="h-6 w-6 text-primary" />
+            <div className="text-center">
+              <div className="text-sm font-medium">Leídos</div>
+              <div className="text-lg font-bold opacity-90">{Math.max(0, (stats?.total_validos || 0) - (stats?.total_no_leidos || 0))}</div>
             </div>
           </Button>
 
@@ -936,6 +975,69 @@ export default function CasosPage() {
         </div>
       )}
 
+      {/* Pestañas Permanentes de Navegación Rápida */}
+      <div className="flex items-center gap-2 p-1.5 bg-muted/40 backdrop-blur rounded-xl border w-full overflow-x-auto">
+        <Button
+          variant={activeTab === "todos" ? "default" : "ghost"}
+          size="sm"
+          className="h-8 gap-2 rounded-lg font-medium"
+          onClick={() => handleTabChange("todos")}
+        >
+          <List className="h-4 w-4" />
+          Todos los Casos ({stats?.total_validos || 0})
+        </Button>
+        <Button
+          variant={activeTab === "no_leidos" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 gap-2 rounded-lg font-medium ${activeTab === "no_leidos" ? "" : "text-amber-500 hover:text-amber-400"}`}
+          onClick={() => handleTabChange("no_leidos")}
+        >
+          <Mail className="h-4 w-4" />
+          Sin Leer (No Leídos)
+          {(unreadCount > 0 || (stats?.total_no_leidos || 0) > 0) && (
+            <Badge variant="destructive" className="h-5 px-1.5 text-[11px] font-bold">
+              {unreadCount || stats?.total_no_leidos || 0}
+            </Badge>
+          )}
+        </Button>
+        <Button
+          variant={activeTab === "leidos" ? "default" : "ghost"}
+          size="sm"
+          className="h-8 gap-2 rounded-lg font-medium"
+          onClick={() => handleTabChange("leidos")}
+        >
+          <MailOpen className="h-4 w-4" />
+          Leídos ({Math.max(0, (stats?.total_validos || 0) - (stats?.total_no_leidos || 0))})
+        </Button>
+        <Button
+          variant={activeTab === "hoy" ? "default" : "ghost"}
+          size="sm"
+          className="h-8 gap-2 rounded-lg font-medium"
+          onClick={() => handleTabChange("hoy")}
+        >
+          <Calendar className="h-4 w-4" />
+          Hoy ({stats?.total_actualizados_hoy || 0})
+        </Button>
+        <Button
+          variant={activeTab === "no_encontrados" ? "destructive" : "ghost"}
+          size="sm"
+          className="h-8 gap-2 rounded-lg font-medium"
+          onClick={() => handleTabChange("no_encontrados")}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          No Encontrados ({stats?.total_invalidos || 0})
+        </Button>
+        <Button
+          variant={activeTab === "retirados" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-8 gap-2 rounded-lg font-medium text-muted-foreground hover:text-amber-600"
+          onClick={() => handleTabChange("retirados")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Retirados
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -957,7 +1059,7 @@ export default function CasosPage() {
               )}
             </div>
 
-            {["todos", "no_leidos", "hoy", "retirados"].includes(activeTab) && (
+            {["todos", "no_leidos", "leidos", "hoy", "retirados"].includes(activeTab) && (
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="w-full sm:w-44">
                   <label className="text-xs text-muted-foreground mb-1 block">Cédula</label>
@@ -993,7 +1095,7 @@ export default function CasosPage() {
               </div>
             )}
 
-            {!["todos", "no_leidos", "hoy", "retirados"].includes(activeTab) && (
+            {!["todos", "no_leidos", "leidos", "hoy", "retirados"].includes(activeTab) && (
               <div className="flex gap-2">
                 <Button type="submit" disabled={isLoading}><Search className="mr-2 h-4 w-4" />Filtrar</Button>
                 {(appliedSearch || appliedJuzgado) && <Button type="button" variant="outline" onClick={handleClearFilters}>Limpiar</Button>}
@@ -1010,7 +1112,8 @@ export default function CasosPage() {
               <CardTitle>
                 {activeTab === "todos" && `Casos validados (${total})`}
                 {activeTab === "pendientes" && `Pendientes de validar (${total})`}
-                {activeTab === "no_leidos" && `Casos sin leer (${total})`}
+                {activeTab === "no_leidos" && `Casos sin leer / No Leídos (${total})`}
+                {activeTab === "leidos" && `Casos leídos (${total})`}
                 {activeTab === "hoy" && `Actualizados hoy (${total})`}
                 {activeTab === "no_encontrados" && `No encontrados (${invalidTotal})`}
                 {activeTab === "retirados" && `Radicados retirados (${total})`}
@@ -1037,13 +1140,19 @@ export default function CasosPage() {
               {activeTab !== "no_encontrados" && activeTab !== "pendientes" && unreadCount > 0 && (
                 <Button onClick={handleMarkAllRead} disabled={isMarkingAllRead} variant="outline" size="sm">
                   {isMarkingAllRead ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                  Marcar leídos
+                  Marcar todos leídos
                 </Button>
               )}
               {activeTab !== "no_encontrados" && activeTab !== "pendientes" && selectedIds.size > 0 && (
                 <>
                   <Button onClick={() => setIsMassAssignOpen(true)} variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10">
                     Asignar Abogado
+                  </Button>
+                  <Button onClick={handleMarkSelectedRead} variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10">
+                    <MailOpen className="h-4 w-4 mr-1.5" /> Marcar Leído ({selectedIds.size})
+                  </Button>
+                  <Button onClick={handleMarkSelectedUnread} variant="outline" size="sm" className="text-amber-600 hover:text-amber-500 border-amber-500/30 hover:bg-amber-500/10">
+                    <Mail className="h-4 w-4 mr-1.5" /> Marcar No Leído ({selectedIds.size})
                   </Button>
                   <Button onClick={handleDownloadSelected} disabled={isDownloading} variant="outline" size="sm">
                     {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}

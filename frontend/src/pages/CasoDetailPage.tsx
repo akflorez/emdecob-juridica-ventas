@@ -4,7 +4,7 @@ import {
   ArrowLeft, Calendar, Clock, FileText, Loader2, Filter, AlertCircle, 
   Download, User as UserIcon, Users, Building2, Hash, Paperclip, ChevronDown,
   FileDown, RefreshCw, ArrowRight, UserCheck, Edit3, ChevronRight,
-  ExternalLink
+  ExternalLink, Mail, MailOpen
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import {
   getCaseSourcesHistory,
   buscarNuevamente,
   markCaseRead,
+  markCaseUnread,
   updateCaseActiveStatus,
   type User,
   type Task as TaskType,
@@ -147,6 +148,29 @@ export default function CasoDetailPage() {
   const [searchText, setSearchText] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const [isUnread, setIsUnread] = useState(false);
+  const [isTogglingRead, setIsTogglingRead] = useState(false);
+
+  const handleToggleReadStatus = async () => {
+    if (!caseData?.id) return;
+    setIsTogglingRead(true);
+    try {
+      if (isUnread) {
+        await markCaseRead(caseData.id);
+        setIsUnread(false);
+        toast({ title: "Marcado como leído", description: `El caso ${caseData.radicado} quedó marcado como leído.` });
+      } else {
+        await markCaseUnread(caseData.id);
+        setIsUnread(true);
+        toast({ title: "Marcado como no leído", description: `El caso ${caseData.radicado} quedó marcado como no leído para revisarlo más tarde.` });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "No se pudo cambiar el estado", variant: "destructive" });
+    } finally {
+      setIsTogglingRead(false);
+    }
+  };
 
   const [expandedDocs, setExpandedDocs] = useState<Record<number, DocsState>>({});
   const [loadingDocs, setLoadingDocs] = useState<Record<number, boolean>>({});
@@ -832,7 +856,22 @@ export default function CasoDetailPage() {
             <p className="font-mono text-primary text-sm mt-1">{caseData.radicado}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
+          <Button 
+            onClick={handleToggleReadStatus} 
+            disabled={isTogglingRead} 
+            variant="outline" 
+            size="sm"
+            className={`gap-1.5 font-medium transition-colors ${
+              isUnread 
+                ? 'border-amber-500/40 text-amber-600 bg-amber-500/10 hover:bg-amber-500/20' 
+                : 'border-muted-foreground/30 text-muted-foreground hover:text-foreground'
+            }`}
+            title={isUnread ? "Haz clic para marcar como leído" : "Haz clic para dejar como no leído"}
+          >
+            {isTogglingRead ? <Loader2 className="h-4 w-4 animate-spin" /> : isUnread ? <Mail className="h-4 w-4 text-amber-500" /> : <MailOpen className="h-4 w-4" />}
+            {isUnread ? "Sin Leer (No Leído)" : "Marcar como No Leído"}
+          </Button>
           {caseData.encontrado_en_fuente_alternativa && (
             <Button 
               onClick={handleBuscarNuevamente} 

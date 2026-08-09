@@ -4534,6 +4534,7 @@ def list_cases(
     solo_validos: bool = Query(default=True),
     solo_pendientes: bool = Query(default=False),
     solo_no_leidos: bool = Query(default=False),
+    solo_leidos: bool = Query(default=False),
     solo_actualizados_hoy: bool = Query(default=False),
     solo_retirados: bool = Query(default=False),
     con_documentos: Optional[bool] = Query(default=None),
@@ -4561,16 +4562,18 @@ def list_cases(
         elif solo_validos:
             q = q.filter(Case.juzgado.isnot(None))
 
+        hoy = today_colombia()
+        ayer = hoy - timedelta(days=1)
+        unread_condition = or_(
+            and_(Case.current_hash.isnot(None), Case.last_hash.isnot(None), Case.current_hash != Case.last_hash),
+            and_(Case.current_hash.isnot(None), Case.last_hash.is_(None), Case.ultima_actuacion >= ayer),
+            Case.last_hash == "unread_manually"
+        )
+
         if solo_no_leidos:
-            hoy = today_colombia()
-            ayer = hoy - timedelta(days=1)
-            q = q.filter(
-                Case.current_hash.isnot(None),
-                or_(
-                    and_(Case.last_hash.isnot(None), Case.current_hash != Case.last_hash),
-                    and_(Case.last_hash.is_(None), Case.ultima_actuacion >= ayer),
-                )
-            )
+            q = q.filter(unread_condition)
+        elif solo_leidos:
+            q = q.filter(not_(unread_condition))
 
         if solo_actualizados_hoy:
             q = q.filter(Case.ultima_actuacion == today_colombia())
@@ -4908,6 +4911,7 @@ def delete_case(case_id: int, db: Session = Depends(get_db), current_user: User 
 # =========================
 # MARK READ
 # =========================
+@app.post("/api/cases/{case_id}/mark-read")
 @app.post("/cases/{case_id}/mark-read")
 def mark_case_read(case_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     c = db.query(Case).filter(Case.id == case_id).first()
@@ -4915,7 +4919,8 @@ def mark_case_read(case_id: int, db: Session = Depends(get_db), current_user: Us
         raise HTTPException(404, "Caso no encontrado")
     if not is_global_superadmin(current_user) and c.company_id != current_user.company_id:
         raise HTTPException(403, "No tienes permisos sobre este caso")
-    c.last_hash = c.current_hash or c.last_hash
+    c.current_hash = c.current_hash or f"case_{c.id}_hash"
+    c.last_hash = c.current_hash
     db.commit()
     return {"ok": True, "id": c.id}
 
@@ -4927,10 +4932,12 @@ def mark_case_unread(case_id: int, db: Session = Depends(get_db), current_user: 
         raise HTTPException(404, "Caso no encontrado")
     if not is_global_superadmin(current_user) and c.company_id != current_user.company_id:
         raise HTTPException(403, "No tienes permisos sobre este caso")
+    c.current_hash = c.current_hash or f"case_{c.id}_hash"
     c.last_hash = "unread_manually"
     db.commit()
     return {"ok": True, "id": c.id}
 
+@app.post("/api/cases/mark-read-bulk")
 @app.post("/cases/mark-read-bulk")
 def mark_read_bulk(data: MarkReadBulkRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     ids = [int(x) for x in (data.case_ids or [])]
@@ -4944,9 +4951,30 @@ def mark_read_bulk(data: MarkReadBulkRequest, db: Session = Depends(get_db), cur
         
     updated = 0
     for c in cases:
-        if is_unread_case(c):
-            c.last_hash = c.current_hash
-            updated += 1
+        c.current_hash = c.current_hash or f"case_{c.id}_hash"
+        c.last_hash = c.current_hash
+        updated += 1
+
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+@app.post("/api/cases/mark-unread-bulk")
+@app.post("/cases/mark-unread-bulk")
+def mark_unread_bulk(data: MarkReadBulkRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    ids = [int(x) for x in (data.case_ids or [])]
+    if not ids:
+        raise HTTPException(400, "No se enviaron ids")
+
+    if is_global_superadmin(current_user):
+        cases = db.query(Case).filter(Case.id.in_(ids)).all()
+    else:
+        cases = db.query(Case).filter(Case.id.in_(ids), Case.company_id == current_user.company_id).all()
+        
+    updated = 0
+    for c in cases:
+        c.current_hash = c.current_hash or f"case_{c.id}_hash"
+        c.last_hash = "unread_manually"
+        updated += 1
 
     db.commit()
     return {"ok": True, "updated": updated}
