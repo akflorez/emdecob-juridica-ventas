@@ -477,6 +477,21 @@ async def do_auto_refresh() -> dict:
                 if not c:
                     continue
 
+                # Si el caso es de la SIC, consultar con el conector de la SIC
+                if c.juzgado == "SIC" or c.fuente_encontrado == "SIC" or bool(re.match(r'^(?:20)?\d{2}-\d+$', str(c.radicado).strip())):
+                    try:
+                        from backend.services.judicial_sources import CONNECTORS
+                        sic_conn = CONNECTORS.get("SIC")
+                        meta = {"cedula": c.cedula, "demandante": c.demandante, "demandado": c.demandado, "estado": c.estado}
+                        sic_res = sic_conn.search_case(c.radicado, metadata=meta)
+                        c.last_check_at = now_colombia()
+                        checked += 1
+                        continue
+                    except Exception as sic_err:
+                        print(f"   [WARN] Error consultando SIC {c.radicado}: {sic_err}")
+                        errors += 1
+                        continue
+
                 try:
                     resp = await consulta_por_radicado(c.radicado, solo_activos=False, pagina=1)
                     items = extract_items(resp)
@@ -2595,7 +2610,66 @@ async def fetch_documentos_rama_directa(id_reg_actuacion: int, llave_proceso: st
 
 
 async def validar_radicado_completo(radicado: str, db: Session, is_new_import: bool = False) -> dict:
-    # 1. HACER TODAS LAS CONSULTAS HTTP PRIMERO (Sin transacciones/bloqueos DB)
+    # 0. VERIFICAR SI ES CASO DE LA SIC (Superintendencia de Industria y Comercio)
+    c_existing = db.query(Case).filter(Case.radicado == radicado).first()
+    is_sic = (c_existing and c_existing.juzgado == "SIC") or bool(re.match(r'^(?:20)?\d{2}-\d+$', str(radicado).strip()))
+    
+    if is_sic:
+        try:
+            from backend.services.judicial_sources import CONNECTORS
+            sic_conn = CONNECTORS.get("SIC")
+            meta = {
+                "cedula": c_existing.cedula if c_existing else None,
+                "demandante": c_existing.demandante if c_existing else None,
+                "demandado": c_existing.demandado if c_existing else None,
+                "estado": c_existing.estado if c_existing else None
+            }
+            sic_res = sic_conn.search_case(radicado, metadata=meta)
+            sic_data = sic_res.get("data", {})
+            
+            if not c_existing:
+                c_existing = Case(radicado=radicado)
+                db.add(c_existing)
+                db.flush()
+                
+            c_existing.juzgado = "SIC"
+            c_existing.despacho = "Superintendencia de Industria y Comercio - SIC"
+            c_existing.fuente_encontrado = "SIC"
+            c_existing.tipo_proceso = "Demanda Protección al Consumidor Jurisdiccional"
+            if sic_data.get("demandante"): c_existing.demandante = sic_data.get("demandante")
+            if sic_data.get("demandado"): c_existing.demandado = sic_data.get("demandado")
+            if sic_data.get("estado"): c_existing.estado = sic_data.get("estado")
+            if sic_data.get("ultima_actuacion"): c_existing.ultima_actuacion = parse_fecha(sic_data.get("ultima_actuacion"))
+            c_existing.last_check_at = now_colombia()
+            
+            # Guardar actuaciones de la SIC si las devolvió
+            for act in sic_data.get("actuaciones", []):
+                act_date = act.get("fecha")
+                act_title = act.get("actuacion") or "Actuación SIC"
+                act_detail = act.get("anotacion") or ""
+                ev_hash = sha256_obj({"event_date": act_date, "title": act_title, "detail": act_detail})
+                
+                exists = db.query(CaseEvent).filter(
+                    CaseEvent.case_id == c_existing.id,
+                    CaseEvent.event_hash == ev_hash
+                ).first()
+                if not exists:
+                    db.add(CaseEvent(
+                        case_id=c_existing.id,
+                        company_id=c_existing.company_id,
+                        event_date=act_date,
+                        title=act_title,
+                        detail=act_detail,
+                        event_hash=ev_hash
+                    ))
+            db.flush()
+            return {"found": True, "case": c_existing}
+        except Exception as e:
+            print(f"[SIC] Error validando radicado SIC {radicado}: {e}")
+            if c_existing:
+                return {"found": True, "case": c_existing}
+
+    # 1. HACER TODAS LAS CONSULTAS HTTP A RAMA JUDICIAL (Sin transacciones/bloqueos DB)
     try:
         resp = await consulta_por_radicado(radicado, solo_activos=False, pagina=1)
         items = extract_items(resp)
@@ -6223,11 +6297,12 @@ async def import_excel(
         cols_lower = {c.lower(): c for c in df.columns}
         
         rad_col = next((cols_lower[k] for k in ["radicado", "numero", "proceso", "num_proceso", "radicacion"] if k in cols_lower), None)
-        ced_col = next((cols_lower[k] for k in ["cedula", "identificacion", "documento", "nit", "cc"] if k in cols_lower), None)
+        ced_col = next((cols_lower[k] for k in ["cc", "cedula", "identificacion", "documento", "nit"] if k in cols_lower), None)
         abo_col = next((cols_lower[k] for k in ["abogado", "apoderado", "responsable", "asignado"] if k in cols_lower), None)
         dte_col = next((cols_lower[k] for k in ["demandante", "actor", "solicitante"] if k in cols_lower), None)
-        dda_col = next((cols_lower[k] for k in ["demandado", "contraparte", "demandados"] if k in cols_lower), None)
+        dda_col = next((cols_lower[k] for k in ["demandado", "demandando", "contraparte", "demandados"] if k in cols_lower), None)
         juz_col = next((cols_lower[k] for k in ["juzgado", "despacho", "autoridad", "tribunal"] if k in cols_lower), None)
+        est_col = next((cols_lower[k] for k in ["estado", "estado_proceso", "situacion"] if k in cols_lower), None)
 
         if not rad_col:
             raise HTTPException(400, "Falta la columna 'Radicado' en el archivo Excel.")
@@ -6239,9 +6314,9 @@ async def import_excel(
             if pd.isna(raw_rad) or raw_rad is None:
                 continue
             radicado = str(raw_rad).strip().replace(".0", "")
-            # Limpiar caracteres invisibles o de control
+            # Limpiar caracteres invisibles o de control pero conservar guiones de SIC (ej: 26-64018)
             radicado = re.sub(r'[\s\x00-\x1f\x7f-\x9f]', '', radicado)
-            if not radicado or len(radicado) < 5:
+            if not radicado or len(radicado) < 4:
                 continue
 
             def get_val(col_name):
@@ -6258,6 +6333,14 @@ async def import_excel(
             demandante = get_val(dte_col)
             demandado = get_val(dda_col)
             juzgado = get_val(juz_col)
+            estado = get_val(est_col)
+            
+            # Autodetección de casos SIC
+            is_sic = False
+            if (juzgado and "SIC" in juzgado.upper()) or re.match(r'^(?:20)?\d{2}-\d+$', radicado):
+                is_sic = True
+                if not juzgado:
+                    juzgado = "SIC"
                 
             rows_to_process.append({
                 "radicado": radicado,
@@ -6265,7 +6348,9 @@ async def import_excel(
                 "abogado": abogado,
                 "demandante": demandante,
                 "demandado": demandado,
-                "juzgado": juzgado
+                "juzgado": juzgado,
+                "estado": estado,
+                "is_sic": is_sic
             })
 
         if not rows_to_process:
@@ -6299,6 +6384,7 @@ async def import_excel(
                             if item["demandante"] and not c.demandante: c.demandante = item["demandante"]
                             if item["demandado"] and not c.demandado: c.demandado = item["demandado"]
                             if item["juzgado"] and not c.juzgado: c.juzgado = item["juzgado"]
+                            if item["estado"] and not c.estado: c.estado = item["estado"]
                         batch_updated += 1
                     else:
                         # Limpiar de invalid_radicados si existia en la misma empresa
@@ -6312,6 +6398,10 @@ async def import_excel(
                         except Exception:
                             pass
 
+                        despacho_val = "Superintendencia de Industria y Comercio - SIC" if item["is_sic"] else None
+                        fuente_val = "SIC" if item["is_sic"] else None
+                        tipo_proc_val = "Demanda Protección al Consumidor Jurisdiccional" if item["is_sic"] else None
+
                         new_case = Case(
                             radicado=rad,
                             cedula=item["cedula"],
@@ -6319,6 +6409,10 @@ async def import_excel(
                             demandante=item["demandante"],
                             demandado=item["demandado"],
                             juzgado=item["juzgado"],
+                            despacho=despacho_val,
+                            fuente_encontrado=fuente_val,
+                            tipo_proceso=tipo_proc_val,
+                            estado=item["estado"],
                             user_id=user_id,
                             company_id=comp_id,
                             is_active=True
@@ -6348,9 +6442,14 @@ async def import_excel(
                                 if item["demandante"] and not c.demandante: c.demandante = item["demandante"]
                                 if item["demandado"] and not c.demandado: c.demandado = item["demandado"]
                                 if item["juzgado"] and not c.juzgado: c.juzgado = item["juzgado"]
+                                if item["estado"] and not c.estado: c.estado = item["estado"]
                             db.commit()
                             updated += 1
                         else:
+                            despacho_val = "Superintendencia de Industria y Comercio - SIC" if item["is_sic"] else None
+                            fuente_val = "SIC" if item["is_sic"] else None
+                            tipo_proc_val = "Demanda Protección al Consumidor Jurisdiccional" if item["is_sic"] else None
+
                             new_case = Case(
                                 radicado=rad,
                                 cedula=item["cedula"],
@@ -6358,6 +6457,10 @@ async def import_excel(
                                 demandante=item["demandante"],
                                 demandado=item["demandado"],
                                 juzgado=item["juzgado"],
+                                despacho=despacho_val,
+                                fuente_encontrado=fuente_val,
+                                tipo_proceso=tipo_proc_val,
+                                estado=item["estado"],
                                 user_id=user_id,
                                 company_id=comp_id,
                                 is_active=True

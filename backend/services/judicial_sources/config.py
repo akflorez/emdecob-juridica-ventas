@@ -31,5 +31,10 @@ JUDICIAL_SOURCE_URLS = {
         "name": "SAMAI",
         "base_url": "https://samai.consejodeestado.gov.co/",
         "consulta_consejo_estado_url": "https://www.consejodeestado.gov.co/consulta/index.htm"
+    },
+    "SIC": {
+        "name": "Superintendencia de Industria y Comercio - SIC",
+        "base_url": "https://apiexternotramites.sic.gov.co/consulta-externa",
+        "portal_url": "https://consultatramites.sic.gov.co/consulta-externa"
     }
 }
