@@ -6890,8 +6890,41 @@ async def descargar_documento_endpoint(
         if associated_case.company_id != current_user.company_id:
             raise HTTPException(status_code=403, detail="Acceso denegado. Propiedad de empresa no válida.")
 
-    # Si es documento de la SIC o tiene URL directa
-    if target_doc and target_doc.get("url"):
+    # Si es documento de la SIC
+    doc_name = (target_doc.get("nombre") or target_doc.get("nombreDocumento") or "").upper() if target_doc else ""
+    is_sic_doc = (
+        "SIC" in doc_name or 
+        (associated_case and associated_case.radicado and (associated_case.radicado.startswith("24-") or associated_case.radicado.startswith("25-") or associated_case.radicado.startswith("26-"))) or
+        (target_doc and target_doc.get("origen") == "Superintendencia de Industria y Comercio - SIC") or
+        (target_doc and "consultatramites.sic.gov.co" in target_doc.get("url", ""))
+    )
+
+    if is_sic_doc:
+        import io
+        from backend.service.sic_pdf import generate_sic_actuacion_pdf
+        pdf_bytes = generate_sic_actuacion_pdf(
+            radicado=associated_case.radicado,
+            demandante=associated_case.demandante or "No especificado",
+            demandado=associated_case.demandado or "No especificado",
+            cedula=associated_case.cedula,
+            actuacion=associated_event.title or (target_doc.get("tipoDocumento") if target_doc else "Actuación SIC"),
+            fecha=associated_event.event_date or (target_doc.get("fecha") if target_doc else ""),
+            detalle=associated_event.detail or "",
+            estado=associated_case.estado or "Demanda en Trámite",
+            despacho=associated_case.juzgado or associated_case.despacho or "Superintendencia de Industria y Comercio"
+        )
+        clean_filename = target_doc.get("nombre") or f"SIC_{associated_case.radicado}_{id_documento}.pdf"
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{clean_filename}"',
+                "Cache-Control": "no-cache",
+            }
+        )
+
+    # Si tiene URL directa a un archivo PDF externo
+    if target_doc and target_doc.get("url") and target_doc["url"].lower().endswith(".pdf"):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=target_doc["url"])
 
