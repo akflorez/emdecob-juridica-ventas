@@ -1240,7 +1240,7 @@ export default function CasoDetailPage() {
                                             doc.fecha        ||
                                             '';
 
-                                          const authToken = localStorage.getItem("token") || localStorage.getItem("access_token");
+                                          const authToken = localStorage.getItem("emdecob_auth_token") || localStorage.getItem("token") || localStorage.getItem("access_token") || "";
                                           const isDirectExternalPdf = Boolean(doc.url && doc.url.toLowerCase().endsWith(".pdf") && !doc.url.includes("sic.gov.co"));
                                           const downloadUrl = isDirectExternalPdf
                                             ? doc.url 

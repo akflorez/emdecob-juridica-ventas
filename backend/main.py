@@ -2176,10 +2176,24 @@ def get_current_user(
 ) -> User:
     try:
         actual_token = None
-        if credentials:
+        if credentials and credentials.credentials:
             actual_token = credentials.credentials
         elif token:
             actual_token = token
+        elif request.query_params.get("token"):
+            actual_token = request.query_params.get("token")
+        elif request.query_params.get("access_token"):
+            actual_token = request.query_params.get("access_token")
+        elif request.headers.get("authorization"):
+            auth_h = request.headers.get("authorization", "")
+            if auth_h.lower().startswith("bearer "):
+                actual_token = auth_h[7:].strip()
+            else:
+                actual_token = auth_h.strip()
+        elif request.cookies.get("emdecob_auth_token"):
+            actual_token = request.cookies.get("emdecob_auth_token")
+        elif request.cookies.get("token"):
+            actual_token = request.cookies.get("token")
         
         if not actual_token:
             raise HTTPException(status_code=401, detail="No autenticado")
