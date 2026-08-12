@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { 
   updateTask, addComment, deleteComment, updateComment,
   addChecklistItem, updateChecklistItem, deleteChecklistItem,
-  getUsers, getTags, getStatuses, getTaskDetail, createTask, deleteTask,
+  getUsers, getTags, getStatuses, getTaskDetail, createTask, deleteTask, createTag,
   type Task as TaskType, type User, type Tag as TagType
 } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +71,10 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate, onTaskDelet
   // Collapsible states
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(true);
   const [isChecklistOpen, setIsChecklistOpen] = useState(true);
+
+  // Subtask edit states
+  const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
+  const [editSubtaskTitle, setEditSubtaskTitle] = useState("");
 
   // Subtask form states
   const [showSubtaskForm, setShowSubtaskForm] = useState(false);
@@ -464,10 +468,17 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate, onTaskDelet
                                   <Input 
                                     placeholder="Nueva etiqueta..." 
                                     className="h-9 bg-accent/30 border-border/40 rounded-lg text-xs"
-                                    onKeyDown={(e: any) => {
+                                    onKeyDown={async (e: any) => {
                                       if (e.key === 'Enter') {
                                         const val = e.target.value;
                                         if (val.trim()) {
+                                          try {
+                                              await createTag(val.trim());
+                                              const updatedTags = await getTags();
+                                              setAllTags(updatedTags);
+                                          } catch (err) {
+                                              console.error("Error creating tag", err);
+                                          }
                                           toggleTag(val.trim());
                                           e.target.value = '';
                                         }
@@ -530,25 +541,50 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate, onTaskDelet
                       {isSubtasksOpen && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                           <div className="bg-card/10 rounded-[2rem] border border-border/50 overflow-hidden shadow-2xl">
-                             <div className="grid grid-cols-[1fr_120px_180px_100px_140px] gap-6 px-10 py-4 border-b border-border/50 text-[10px] font-black uppercase text-muted-foreground tracking-widest bg-muted/20">
+                             <div className="grid grid-cols-[1fr_120px_180px_100px_140px_70px] gap-6 px-10 py-4 border-b border-border/50 text-[10px] font-black uppercase text-muted-foreground tracking-widest bg-muted/20">
                                 <div>Actividad</div>
                                 <div className="text-center">Etiquetas</div>
                                 <div className="text-center">Responsable</div>
                                 <div className="text-center">Prioridad</div>
                                 <div className="text-right">Vencimiento</div>
+                                <div></div>
                              </div>
                              <div className="divide-y divide-border/50">
                                 {displayTask.subtasks?.length ? (
                                    displayTask.subtasks.map(st => (
-                                     <div key={st.id} className="grid grid-cols-[1fr_120px_180px_100px_140px] gap-6 px-10 py-3 hover:bg-muted/30 transition-all cursor-pointer group text-[13.5px] border-l-2 border-transparent hover:border-primary items-center">
-                                        <div className="flex items-center gap-5 text-foreground">
+                                     <div key={st.id} className="grid grid-cols-[1fr_120px_180px_100px_140px_70px] gap-6 px-10 py-3 hover:bg-muted/30 transition-all cursor-pointer group text-[13.5px] border-l-2 border-transparent hover:border-primary items-center">
+                                        <div className="flex items-center gap-5 text-foreground overflow-hidden">
                                             <div 
                                               className={cn("h-5 w-5 rounded-md border-2 border-border/80 flex items-center justify-center transition-all hover:border-primary cursor-pointer flex-shrink-0", ['completado', 'completo', 'finalizado', 'terminado', 'closed', 'done'].includes(st.status?.toLowerCase() || '') && 'bg-[#2da44e] border-[#2da44e]')}
                                               onClick={(e) => toggleSubtaskStatus(st, e)}
                                             >
                                               {['completado', 'completo', 'finalizado', 'terminado', 'closed', 'done'].includes(st.status?.toLowerCase() || '') && <Check className="h-3 w-3 text-white" />}
                                            </div>
-                                           <span className={cn("font-bold tracking-tight truncate", ['completado', 'completo', 'finalizado', 'terminado', 'closed', 'done'].includes(st.status?.toLowerCase() || '') && "line-through text-muted-foreground opacity-50")}>{st.title}</span>
+                                           {editingSubtaskId === st.id ? (
+                                              <Input 
+                                                value={editSubtaskTitle}
+                                                onChange={(e) => setEditSubtaskTitle(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onKeyDown={async (e) => {
+                                                  if (e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      try {
+                                                          await updateTask(st.id, { title: editSubtaskTitle });
+                                                          setEditingSubtaskId(null);
+                                                          await refreshTask();
+                                                      } catch (error) {
+                                                          console.error("Error updating subtask", error);
+                                                      }
+                                                  } else if (e.key === 'Escape') {
+                                                      setEditingSubtaskId(null);
+                                                  }
+                                                }}
+                                                autoFocus
+                                                className="h-7 text-[11px] flex-1 min-w-0 font-bold"
+                                              />
+                                           ) : (
+                                              <span className={cn("font-bold tracking-tight truncate", ['completado', 'completo', 'finalizado', 'terminado', 'closed', 'done'].includes(st.status?.toLowerCase() || '') && "line-through text-muted-foreground opacity-50")}>{st.title}</span>
+                                           )}
                                         </div>
                                         <div className="flex justify-center items-center" onClick={(e) => e.stopPropagation()}>
                                            <Popover>
@@ -654,6 +690,34 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate, onTaskDelet
                                                }
                                              }}
                                            />
+                                         </div>
+                                         <div className="flex items-center justify-end gap-1 transition-opacity">
+                                           <button
+                                             onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingSubtaskId(st.id);
+                                              setEditSubtaskTitle(st.title);
+                                            }}
+                                            className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all duration-200"
+                                          >
+                                            <Edit3 className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              if (window.confirm("¿Estás seguro de eliminar esta gestión?")) {
+                                                try {
+                                                  await deleteTask(st.id);
+                                                  await refreshTask();
+                                                } catch (error) {
+                                                  console.error("Error al eliminar gestión", error);
+                                                }
+                                              }
+                                            }}
+                                            className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-all duration-200"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
                                         </div>
                                      </div>
                                    ))

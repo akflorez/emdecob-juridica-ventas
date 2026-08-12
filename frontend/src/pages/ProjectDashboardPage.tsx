@@ -8,7 +8,7 @@ import {
   ChevronDown, Calendar, PieChart as PieIcon, BarChart as BarIcon, 
   TrendingUp, Users, Activity, Flag, Settings, Layers, Users2, Database,
   PanelLeftClose, PanelLeftOpen, AlertTriangle, CalendarRange, ArrowLeft,
-  ChevronLeft, Trash2
+  ChevronLeft, Trash2, Edit3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { 
   getWorkspaces, getTasks, importClickUp, updateTask, getUsers,
   createWorkspace, createFolder, createList, addWorkspaceMember, createTask,
-  deleteWorkspace, deleteFolder, deleteList,
+  deleteWorkspace, deleteFolder, deleteList, updateWorkspace,
   getNotificationConfig, updateNotificationConfig,
   type Workspace, type Task as TaskType, type User, type NotificationConfigResponse
 } from "@/services/api";
@@ -116,6 +116,9 @@ export default function ProjectDashboardPage() {
   const [responsibleFilter, setResponsibleFilter] = useState<string>("all");
   const [newDueDate, setNewDueDate] = useState("");
   const [clickupToken, setClickupToken] = useState<string>(localStorage.getItem('clickup_token') || '');
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<number | null>(null);
+  const [editWorkspaceName, setEditWorkspaceName] = useState("");
+
 
   useEffect(() => {
     console.log("🚀 Judicial Dashboard Expert Engine v2.3 Loaded");
@@ -458,9 +461,24 @@ export default function ProjectDashboardPage() {
           setSelectedListId(l.id);
         }
       } else if (creationModal.mode === 'tarea' || !creationModal.mode) {
+        let targetListId = selectedListId;
+        if (!targetListId && selectedWorkspaceId) {
+           const ws = workspaces.find(w => w.id === selectedWorkspaceId);
+           if (ws) {
+               for (const f of ws.folders || []) {
+                   if (f.lists && f.lists.length > 0) {
+                       targetListId = f.lists[0].id;
+                       break;
+                   }
+               }
+               if (!targetListId && ws.lists && ws.lists.length > 0) {
+                   targetListId = ws.lists[0].id;
+               }
+           }
+        }
         await createTask({ 
           title: newItemName, 
-          list_id: selectedListId || undefined,
+          list_id: targetListId || undefined,
           due_date: newDueDate || undefined,
           status: 'ABIERTO'
         });
@@ -572,8 +590,43 @@ export default function ProjectDashboardPage() {
                          <motion.div animate={{ rotate: expandedWorkspaces.has(ws.id) ? 0 : -90 }}>
                             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                          </motion.div>
-                         <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex-1 truncate">{ws.name}</span>
-                         {!user?.sync_with_clickup && (
+                         {editingWorkspaceId === ws.id ? (
+                           <Input 
+                             value={editWorkspaceName}
+                             onChange={(e) => setEditWorkspaceName(e.target.value)}
+                             onClick={(e) => e.stopPropagation()}
+                             onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    try {
+                                        await updateWorkspace(ws.id, { name: editWorkspaceName });
+                                        setEditingWorkspaceId(null);
+                                        toast.success("Espacio actualizado");
+                                        fetchInitialData(true);
+                                    } catch (err: any) {
+                                        toast.error("Error al actualizar", { description: err.message });
+                                    }
+                                } else if (e.key === 'Escape') {
+                                    setEditingWorkspaceId(null);
+                                }
+                             }}
+                             autoFocus
+                             className="h-6 text-[10px] font-black uppercase flex-1 min-w-0"
+                           />
+                         ) : (
+                           <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex-1 truncate">{ws.name}</span>
+                         )}
+                         <div className="flex items-center gap-1 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingWorkspaceId(ws.id);
+                                setEditWorkspaceName(ws.name);
+                              }}
+                              className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all duration-200"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
@@ -592,11 +645,11 @@ export default function ProjectDashboardPage() {
                                   }
                                 }
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-all duration-200"
+                              className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-all duration-200"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          )}
+                         </div>
                        </div>
                        
                        <AnimatePresence>

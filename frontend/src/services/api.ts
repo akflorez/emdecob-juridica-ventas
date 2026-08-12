@@ -1122,6 +1122,10 @@ export function getTags() {
   return apiFetch<Tag[]>("/projects/tags");
 }
 
+export function createTag(name: string, color?: string) {
+  return apiFetch<Tag>("/projects/tags", { method: "POST", body: JSON.stringify({ name, color }) });
+}
+
 export function getStatuses() {
   return apiFetch<string[]>("/projects/statuses");
 }
@@ -1141,6 +1145,10 @@ export function getCaseTasks(caseId: number) {
 
 export function createWorkspace(data: { name: string; description?: string; visibility?: string }) {
   return apiFetch<Workspace>("/projects/workspaces", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateWorkspace(workspaceId: number, data: { name?: string; description?: string; visibility?: string }) {
+  return apiFetch<Workspace>(`/projects/workspaces/${workspaceId}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function createFolder(data: { name: string; workspace_id: number }) {

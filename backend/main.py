@@ -8917,6 +8917,32 @@ async def create_list(
         print(f"[PROJECTS] Error creating list: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al crear lista: {str(e)}")
 
+@app.put("/api/projects/workspaces/{workspace_id}")
+@app.put("/projects/workspaces/{workspace_id}")
+async def update_workspace(
+    workspace_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Espacio no encontrado")
+    
+    if ws.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar este espacio")
+        
+    try:
+        if "name" in data and data["name"] and str(data["name"]).strip():
+            ws.name = str(data["name"]).strip()
+        db.commit()
+        db.refresh(ws)
+        return ws
+    except Exception as e:
+        db.rollback()
+        print(f"[PROJECTS] Error updating workspace: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al editar espacio: {str(e)}")
+
 @app.delete("/api/projects/workspaces/{workspace_id}")
 @app.delete("/projects/workspaces/{workspace_id}")
 async def delete_workspace(
@@ -10985,6 +11011,33 @@ async def system_health_diagnostic(
 async def get_all_tags(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Retorna todas las etiquetas del sistema."""
     return db.query(Tag).all()
+
+@app.post("/api/projects/tags")
+@app.post("/projects/tags")
+async def create_tag(data: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Nombre de etiqueta requerido")
+    
+    color = data.get("color")
+    if not color:
+        import random
+        colors = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#818cf8", "#a78bfa", "#f472b6"]
+        color = random.choice(colors)
+        
+    tag = db.query(Tag).filter(Tag.name.ilike(name)).first()
+    if tag:
+        return tag
+        
+    try:
+        new_tag = Tag(name=name.upper(), color=color)
+        db.add(new_tag)
+        db.commit()
+        db.refresh(new_tag)
+        return new_tag
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/projects/statuses")
 @app.get("/projects/statuses")
