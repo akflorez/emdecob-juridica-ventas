@@ -6026,6 +6026,57 @@ async def sync_case_events_background(case_id: int):
     finally:
         db.close()
 
+class SicSyncPayload(BaseModel):
+    items: List[Dict[str, Any]]
+
+@app.post("/api/cases/{case_id}/sync-sic-payload")
+@app.post("/cases/{case_id}/sync-sic-payload")
+async def sync_sic_payload_endpoint(
+    case_id: int,
+    payload: SicSyncPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    c = db.query(Case).filter(Case.id == case_id).first()
+    if not c:
+        raise HTTPException(404, "Caso no encontrado")
+        
+    raw_items = payload.items
+    from backend.services.judicial_sources.sic_source import SICConnector
+    sic_conn = SICConnector()
+    mapped = sic_conn._map_sic_data(raw_items, c.radicado, "", "", metadata={"demandante": c.demandante, "demandado": c.demandado})
+    acts = mapped.get("actuaciones", [])
+    
+    new_added = 0
+    for a in acts:
+        act_date = a.get("fecha")
+        act_title = (a.get("actuacion") or "Actuación SIC").strip()
+        act_detail = a.get("anotacion") or ""
+        ev_hash = sha256_obj({"event_date": act_date, "title": act_title, "detail": act_detail})
+        
+        exists = db.query(CaseEvent).filter(
+            CaseEvent.case_id == c.id,
+            CaseEvent.event_hash == ev_hash
+        ).first()
+        if not exists:
+            db.add(CaseEvent(
+                case_id=c.id,
+                company_id=c.company_id,
+                event_date=act_date,
+                title=act_title,
+                detail=act_detail,
+                event_hash=ev_hash,
+                con_documentos=False
+            ))
+            new_added += 1
+            
+    if acts:
+        c.ultima_actuacion = parse_fecha(acts[0].get("fecha"))
+        c.fecha_radicacion = parse_fecha(acts[-1].get("fecha"))
+    c.last_check_at = now_colombia()
+    db.commit()
+    return {"status": "success", "total_actuaciones": len(acts), "nuevas": new_added}
+
 # =========================
 # DOWNLOAD EVENTS EXCEL
 # =========================
