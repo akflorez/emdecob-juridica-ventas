@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { 
   getWorkspaces, getTasks, importClickUp, updateTask, getUsers,
   createWorkspace, createFolder, createList, addWorkspaceMember, createTask,
-  deleteWorkspace, deleteFolder, deleteList, updateWorkspace,
+  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, createTag, createQuickUser,
   getNotificationConfig, updateNotificationConfig,
   type Workspace, type Task as TaskType, type User, type NotificationConfigResponse
 } from "@/services/api";
@@ -390,6 +390,13 @@ export default function ProjectDashboardPage() {
         }
       } else if (creationModal.mode === 'pref' && configData) {
         await updateNotificationConfig(configData);
+      } else if (creationModal.mode === 'etiqueta') {
+        if (!newItemName.trim()) {
+           toast.error("El nombre de la etiqueta es requerido");
+           setIsSubmitting(false);
+           return;
+        }
+        await createTag(newItemName.trim());
       } else if (creationModal.mode === 'carpeta' && selectedWorkspaceId) {
         const f = await createFolder({ name: newItemName, workspace_id: selectedWorkspaceId });
         if (f && f.id) {
@@ -485,8 +492,12 @@ export default function ProjectDashboardPage() {
       }
       
       const successName = creationModal.mode === 'equipo' 
-        ? `${selectedUserIds.length > 0 ? selectedUserIds.length + ' miembros' : 'miembro'}`
-        : `"${newItemName}"`;
+        ? 'Miembros agregados' 
+        : creationModal.mode === 'pref'
+        ? 'Preferencias guardadas'
+        : creationModal.mode === 'etiqueta'
+        ? 'Etiqueta creada'
+        : `${creationModal.mode.charAt(0).toUpperCase() + creationModal.mode.slice(1)} "${newItemName}" cread${creationModal.mode === 'carpeta' || creationModal.mode === 'lista' || creationModal.mode === 'tarea' ? 'a' : 'o'}`;
       toast.success(`${creationModal.title} ${successName} procesado con éxito`);
       setCreationModal({ open: false, mode: '', title: '' });
       setNewItemName('');
@@ -541,7 +552,7 @@ export default function ProjectDashboardPage() {
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('carpeta', 'Nueva Carpeta')}><FolderPlus className="mr-2 h-4 w-4" /> Nueva Carpeta</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('lista', 'Nueva Lista')}><ListPlus className="mr-2 h-4 w-4" /> Nueva Lista</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('plantilla', 'Gestionar Plantilla')}><Database className="mr-2 h-4 w-4" /> Plantillas</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('etiqueta', 'Crear Etiqueta de Clasificación')}><Tag className="mr-2 h-4 w-4" /> Etiquetas</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('equipo', 'Gestionar Equipo')}><Users2 className="mr-2 h-4 w-4" /> Equipos</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('pref', 'Configuración')}><Settings className="mr-2 h-4 w-4" /> Preferencias</DropdownMenuItem>
               </DropdownMenuContent>
@@ -1029,7 +1040,7 @@ export default function ProjectDashboardPage() {
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Nombre</label>
                  <Input 
-                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : 'Lista de Tareas'}`}
+                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : creationModal.mode === 'etiqueta' ? 'Urgente / Revisión' : 'Lista de Tareas'}`}
                    value={newItemName}
                    onChange={(e) => setNewItemName(e.target.value)}
                    className="bg-accent/30 border-border/40 rounded-xl h-12 text-sm font-bold"
@@ -1040,6 +1051,39 @@ export default function ProjectDashboardPage() {
              {creationModal.mode === 'equipo' && (
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1 block">Seleccionar Miembros del Equipo</label>
+                  <div className="flex gap-2 mb-2">
+                    <Input 
+                      placeholder="Nombre del Abogado..." 
+                      className="h-8 text-xs flex-1 bg-accent/20"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                    />
+                    <Button 
+                      type="button"
+                      size="sm" 
+                      variant="secondary" 
+                      className="h-8 text-[10px] font-bold"
+                      disabled={!newItemName.trim() || isSubmitting}
+                      onClick={async () => {
+                        try {
+                          setIsSubmitting(true);
+                          const u = await createQuickUser(newItemName.trim());
+                          toast.success("Abogado creado y seleccionado");
+                          setNewItemName('');
+                          // Re-fetch users and auto-select
+                          const updatedUsers = await getUsers();
+                          if (Array.isArray(updatedUsers)) setUsers(updatedUsers);
+                          setSelectedUserIds(prev => [...prev, u.id]);
+                        } catch(e) {
+                          toast.error("Error al crear usuario");
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Crear
+                    </Button>
+                  </div>
                   <div className="max-h-[220px] overflow-y-auto pr-2 space-y-2 divide-y divide-border/20 border border-border/40 rounded-2xl bg-accent/10 p-3">
                     {users.map(u => {
                       const isSelected = selectedUserIds.includes(u.id);

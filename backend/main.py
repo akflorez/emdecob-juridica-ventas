@@ -11039,6 +11039,38 @@ async def create_tag(data: dict = Body(...), db: Session = Depends(get_db), curr
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/projects/quick-users")
+@app.post("/projects/quick-users")
+async def create_quick_user(data: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+    existing = db.query(User).filter(User.nombre.ilike(name)).first()
+    if existing:
+        return existing
+    try:
+        import uuid
+        dummy_email = f"abogado_{uuid.uuid4().hex[:8]}@virtual.local"
+        dummy_username = f"abo_{uuid.uuid4().hex[:6]}"
+        hashed_password = _hash_password("Juridico2026*")
+        new_user = User(
+            email=dummy_email,
+            username=dummy_username,
+            hashed_password=hashed_password,
+            nombre=name.title(),
+            role="ABOGADO",
+            company_id=current_user.company_id,
+            is_active=True
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/projects/statuses")
 @app.get("/projects/statuses")
 async def get_all_statuses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

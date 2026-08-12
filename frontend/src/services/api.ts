@@ -1126,6 +1126,10 @@ export function createTag(name: string, color?: string) {
   return apiFetch<Tag>("/projects/tags", { method: "POST", body: JSON.stringify({ name, color }) });
 }
 
+export function createQuickUser(name: string) {
+  return apiFetch<User>("/projects/quick-users", { method: "POST", body: JSON.stringify({ name }) });
+}
+
 export function getStatuses() {
   return apiFetch<string[]>("/projects/statuses");
 }
