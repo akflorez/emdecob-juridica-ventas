@@ -1241,7 +1241,8 @@ export default function CasoDetailPage() {
                                             '';
 
                                           const authToken = localStorage.getItem("token") || localStorage.getItem("access_token");
-                                          const downloadUrl = doc.url 
+                                          const isDirectExternalPdf = Boolean(doc.url && doc.url.toLowerCase().endsWith(".pdf") && !doc.url.includes("sic.gov.co"));
+                                          const downloadUrl = isDirectExternalPdf
                                             ? doc.url 
                                             : (docId ? `${cleanBaseUrl}/documentos/${docId}/descargar${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}` : null);
 

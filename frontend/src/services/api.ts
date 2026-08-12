@@ -804,7 +804,9 @@ export function downloadDocumento(doc: DocumentoActuacion) {
     return;
   }
 
-  window.open(`${cleanBaseUrl}/documentos/${idDocumento}/descargar`, "_blank");
+  const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+  const url = `${cleanBaseUrl}/documentos/${idDocumento}/descargar${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  window.open(url, "_blank");
 }
 
 /** ---------------------------

@@ -6883,6 +6883,28 @@ async def descargar_documento_endpoint(
                 pass
 
     if not associated_case or not associated_event:
+        # Fallback por ID directo de actuación para casos de SIC u otras fuentes
+        direct_match = query.filter(or_(CaseEvent.id == id_documento, CaseEvent.id_reg_actuacion == id_documento)).first()
+        if direct_match:
+            event, case = direct_match
+            associated_case = case
+            associated_event = event
+            if event.documentos_cache:
+                try:
+                    docs = json.loads(event.documentos_cache)
+                    if docs: target_doc = docs[0]
+                except Exception:
+                    pass
+            if not target_doc:
+                target_doc = {
+                    "idRegDocumento": id_documento,
+                    "nombre": f"SIC_{case.radicado}_{event.title}.pdf",
+                    "tipoDocumento": event.title,
+                    "fecha": event.event_date,
+                    "origen": "Superintendencia de Industria y Comercio - SIC"
+                }
+
+    if not associated_case or not associated_event:
         raise HTTPException(status_code=403, detail="No se encontró una asociación válida para descargar este documento o no tienes acceso.")
 
     # Confirmar pertenencia de empresa adicionalmente
