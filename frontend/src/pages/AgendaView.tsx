@@ -141,7 +141,7 @@ export default function AgendaView() {
     const d = t.due_date ? new Date(t.due_date) : new Date();
     return {
       id: t.id,
-      title: t.title + (!t.due_date ? ' (Sin Fecha)' : ''),
+      title: (t.parent_id ? '↳ ' : '') + t.title + (!t.due_date ? ' (Sin Fecha)' : ''),
       start: d,
       end: d,
       resource: t.priority,
@@ -209,7 +209,7 @@ export default function AgendaView() {
                             <div 
                               key={t.id} 
                               className={`p-3.5 rounded-lg border bg-card hover:bg-muted/30 cursor-pointer shadow-sm hover:shadow transition-all hover:scale-[1.01] duration-200 text-xs ${priorityBorder}`}
-                              onClick={() => setSelectedTask(t)}
+                              onClick={() => setSelectedTask(tasks.find(parent => parent.id === t.parent_id) || t)}
                             >
                                 <div className="flex justify-between items-start mb-1 gap-2">
                                     <span className="font-bold truncate flex-1 text-foreground/90">{t.title}</span>
@@ -260,7 +260,7 @@ export default function AgendaView() {
                             toolbar: CustomToolbar,
                             event: CustomEvent
                         }}
-                        onSelectEvent={(e: any) => setSelectedTask(e.task)}
+                        onSelectEvent={(e: any) => setSelectedTask(tasks.find(parent => parent.id === e.task.parent_id) || e.task)}
                         style={{ height: '100%' }}
                         eventPropGetter={(event) => {
                             const p = event.resource?.toLowerCase();
