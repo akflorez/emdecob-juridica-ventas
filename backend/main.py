@@ -6926,36 +6926,11 @@ async def descargar_documento_endpoint(
         if associated_case.company_id != current_user.company_id:
             raise HTTPException(status_code=403, detail="Acceso denegado. Propiedad de empresa no válida.")
 
-    # 1. Si tiene URL de visordocumental de la SIC (Extraer PDF original del visor)
+    # 1. Si tiene URL de visordocumental de la SIC (Abrir el visor oficial interactivo en el navegador)
     doc_url = target_doc.get("url", "") if target_doc else ""
     if doc_url and "visordocumental.sic.gov.co" in doc_url:
-        try:
-            import httpx
-            from bs4 import BeautifulSoup
-            import io
-            
-            async with httpx.AsyncClient(verify=False, timeout=30.0, follow_redirects=True) as client:
-                r_index = await client.get(doc_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-                soup = BeautifulSoup(r_index.text, 'html.parser')
-                iframe = soup.find('iframe', id='reproductor') or soup.find('iframe')
-                if iframe and iframe.get('src'):
-                    iframe_url = iframe['src']
-                    if not iframe_url.startswith('http'):
-                        iframe_url = f"https://visordocumental.sic.gov.co:8080/consultaDocs/{iframe_url.lstrip('/')}"
-                    
-                    r_pdf = await client.get(iframe_url, headers={"Referer": doc_url, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-                    if r_pdf.status_code == 200 and len(r_pdf.content) > 100:
-                        clean_filename = target_doc.get("nombre") or f"SIC_{associated_case.radicado}_{id_documento}.pdf"
-                        return StreamingResponse(
-                            io.BytesIO(r_pdf.content),
-                            media_type="application/pdf",
-                            headers={
-                                "Content-Disposition": f'inline; filename="{clean_filename}"',
-                                "Cache-Control": "no-cache",
-                            }
-                        )
-        except Exception as e:
-            print(f"[SIC-VISOR] Error descargando desde visordocumental: {e}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=doc_url)
 
     # 2. Si tiene URL directa a un archivo PDF externo
     if target_doc and target_doc.get("url") and target_doc["url"].lower().endswith(".pdf"):

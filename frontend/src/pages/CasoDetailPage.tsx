@@ -1241,10 +1241,13 @@ export default function CasoDetailPage() {
                                             '';
 
                                           const authToken = localStorage.getItem("emdecob_auth_token") || localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+                                          const isVisorDocumental = Boolean(doc.url && doc.url.includes("visordocumental.sic.gov.co"));
                                           const isDirectExternalPdf = Boolean(doc.url && doc.url.toLowerCase().endsWith(".pdf") && !doc.url.includes("sic.gov.co"));
-                                          const downloadUrl = isDirectExternalPdf
-                                            ? doc.url 
-                                            : (docId ? `${cleanBaseUrl}/documentos/${docId}/descargar${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}` : null);
+                                          const downloadUrl = isVisorDocumental
+                                            ? doc.url
+                                            : (isDirectExternalPdf
+                                                ? doc.url 
+                                                : (docId ? `${cleanBaseUrl}/documentos/${docId}/descargar${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}` : null));
 
                                           return (
                                             <div
