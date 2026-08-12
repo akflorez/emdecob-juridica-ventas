@@ -137,7 +137,9 @@ export default function AgendaView() {
     fetchTasks(); // Refrescar para asegurar orden
   };
 
-  const events = tasks.map(t => {
+  const displayTasks = tasks.filter(t => t.parent_id != null);
+
+  const events = displayTasks.map(t => {
     const d = t.due_date ? new Date(t.due_date) : new Date();
     return {
       id: t.id,
@@ -149,7 +151,7 @@ export default function AgendaView() {
     };
   });
 
-  const todayTasks = tasks.filter(t => {
+  const todayTasks = displayTasks.filter(t => {
     if (!t.due_date) return false;
     const d = new Date(t.due_date);
     const today = new Date();
@@ -198,7 +200,7 @@ export default function AgendaView() {
             <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">Próximos Vencimientos</h3>
                 <div className="space-y-3.5 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
-                    {tasks.slice(0, 10).map((t) => {
+                    {displayTasks.slice(0, 10).map((t) => {
                         const isUrgent = t.priority === 'urgent' || t.priority === 'high' || t.priority === 'alta';
                         const isNormal = t.priority === 'normal' || t.priority === 'medium' || t.priority === 'media';
                         let priorityBorder = 'border-l-[4px] border-l-blue-500';
@@ -228,7 +230,7 @@ export default function AgendaView() {
                             </div>
                         );
                     })}
-                    {tasks.length === 0 && (
+                    {displayTasks.length === 0 && (
                         <p className="text-xs text-muted-foreground text-center py-6 bg-muted/20 border border-dashed rounded-lg">No hay tareas programadas.</p>
                     )}
                 </div>
