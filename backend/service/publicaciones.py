@@ -790,8 +790,31 @@ def auto_queue_publicaciones_for_case(db, case, current_user=None, force=False, 
     # Filtrar actuaciones relevantes
     relevant_events = [e for e in events if is_relevant_actuacion(e.title)]
     
-    if not relevant_events:
-        print(f"[auto_queue_publicaciones_for_case] No se encontraron actuaciones relevantes para {radicado}")
+    # Construir conjunto de meses a buscar
+    target_months = set()
+    for ev in relevant_events:
+        for y, m in get_search_months_for_actuacion(ev.event_date):
+            target_months.add((y, m))
+
+    # Cobertura por AÑO DEL RADICADO (desde el año de radicación hasta el mes actual)
+    digits = only_digits(radicado)
+    if len(digits) >= 16 and digits[12:16].isdigit():
+        rad_year = int(digits[12:16])
+        current_date = date.today()
+        if 2015 <= rad_year <= current_date.year:
+            for y in range(rad_year, current_date.year + 1):
+                end_m = 12 if y < current_date.year else current_date.month
+                for m in range(1, end_m + 1):
+                    target_months.add((y, m))
+    elif not target_months:
+        # Fallback de seguridad si no hay año ni actuaciones: últimos 12 meses
+        current_date = date.today()
+        for i in range(12):
+            d = current_date - timedelta(days=i * 30)
+            target_months.add((d.year, d.month))
+
+    if not target_months:
+        print(f"[auto_queue_publicaciones_for_case] No se encontraron meses de búsqueda para {radicado}")
         return 0
         
     queued_count = 0
@@ -829,82 +852,85 @@ def auto_queue_publicaciones_for_case(db, case, current_user=None, force=False, 
         except Exception as ex_err:
             print(f"[auto_queue_publicaciones_for_case] Error resetting error searches: {ex_err}")
 
-    for ev in relevant_events:
-        meses = get_search_months_for_actuacion(ev.event_date)
-        for year, month in meses:
-            mes_str = f"{year}-{month:02d}"
-            
-            # Validation before any processing
-            fecha_inicio_str = f"{year}-{month:02d}-01"
-            last_day = calendar.monthrange(year, month)[1]
-            fecha_fin_str = f"{year}-{month:02d}-{last_day:02d}"
-            
-            fecha_ini_val = parse_fecha_pub(fecha_inicio_str)
-            fecha_fin_val = parse_fecha_pub(fecha_fin_str)
-            
-            if not company_id or not radicado or not mes_str or not fecha_ini_val or not fecha_fin_val:
-                current_bc = (busquedas_creadas or 0) + queued_count
-                print(f"[PUBLICACIONES][QUEUE_INVALID_MONTH] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id=None")
-                continue
+    sorted_months = sorted(list(target_months))
+    for year, month in sorted_months:
+        mes_str = f"{year}-{month:02d}"
+        
+        # Validation before any processing
+        fecha_inicio_str = f"{year}-{month:02d}-01"
+        last_day = calendar.monthrange(year, month)[1]
+        fecha_fin_str = f"{year}-{month:02d}-{last_day:02d}"
+        
+        fecha_ini_val = parse_fecha_pub(fecha_inicio_str)
+        fecha_fin_val = parse_fecha_pub(fecha_fin_str)
+        
+        if not company_id or not radicado or not mes_str or not fecha_ini_val or not fecha_fin_val:
+            current_bc = (busquedas_creadas or 0) + queued_count
+            print(f"[PUBLICACIONES][QUEUE_INVALID_MONTH] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id=None")
+            continue
 
-            # Buscar por company_id + radicado + mes_busqueda para evitar duplicidad
-            existing = db.query(CasePublicationSearch).filter(
-                CasePublicationSearch.company_id == company_id,
-                CasePublicationSearch.radicado == radicado,
-                CasePublicationSearch.mes_busqueda == mes_str
-            ).first()
-            
-            if existing:
-                if force:
-                    if existing.estado not in ["pendiente", "procesando"]:
-                        existing.estado = "pendiente"
-                        existing.estado_busqueda = "pendiente"
-                        existing.intentos = 0
-                        existing.ultimo_error = None
-                        existing.error = None
-                        existing.processed_at = None
-                        existing.locked_at = None
-                        existing.locked_by = None
-                        existing.next_retry_at = None
-                        existing.force = True
-                        db.flush()
-                        queued_count += 1
-                        
-                        current_bc = (busquedas_creadas or 0) + queued_count
-                        print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id} (forced reset)")
-                    else:
-                        current_bc = (busquedas_creadas or 0) + queued_count
-                        print(f"[PUBLICACIONES][QUEUE_SKIPPED_EXISTS] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id} (already active)")
+        # Buscar por company_id + radicado + mes_busqueda para evitar duplicidad
+        existing = db.query(CasePublicationSearch).filter(
+            CasePublicationSearch.company_id == company_id,
+            CasePublicationSearch.radicado == radicado,
+            CasePublicationSearch.mes_busqueda == mes_str
+        ).first()
+        
+        if existing:
+            if force:
+                if existing.estado not in ["pendiente", "procesando"]:
+                    existing.estado = "pendiente"
+                    existing.estado_busqueda = "pendiente"
+                    existing.intentos = 0
+                    existing.ultimo_error = None
+                    existing.error = None
+                    existing.processed_at = None
+                    existing.locked_at = None
+                    existing.locked_by = None
+                    existing.next_retry_at = None
+                    existing.force = True
+                    db.flush()
+                    queued_count += 1
+                    
+                    current_bc = (busquedas_creadas or 0) + queued_count
+                    print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id} (forced reset)")
                 else:
                     current_bc = (busquedas_creadas or 0) + queued_count
-                    print(f"[PUBLICACIONES][QUEUE_SKIPPED_EXISTS] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id}")
+                    print(f"[PUBLICACIONES][QUEUE_SKIPPED_EXISTS] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id} (already active)")
             else:
-                despacho_codigo = extract_despacho_code(radicado)
-                
-                event_date_val = ev.event_date
-                if isinstance(event_date_val, str):
-                    event_date_val = parse_fecha_pub(event_date_val)
-                
-                new_search = CasePublicationSearch(
-                    company_id=company_id,
-                    radicado=radicado,
-                    fecha_actuacion=event_date_val or date.today(),
-                    fecha_inicio_busqueda=fecha_ini_val,
-                    fecha_fin_busqueda=fecha_fin_val,
-                    despacho_codigo=despacho_codigo,
-                    estado="pendiente",
-                    estado_busqueda="pendiente",
-                    mes_busqueda=mes_str,
-                    prioridad=10 if force else 0,
-                    source_trigger="auto_queue",
-                    force=force
-                )
-                db.add(new_search)
-                db.flush()
-                queued_count += 1
-                
                 current_bc = (busquedas_creadas or 0) + queued_count
-                print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={new_search.id}")
+                print(f"[PUBLICACIONES][QUEUE_SKIPPED_EXISTS] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={existing.id}")
+        else:
+            despacho_codigo = extract_despacho_code(radicado)
+            
+            event_date_val = date(year, month, 1)
+            
+            new_search = CasePublicationSearch(
+                company_id=company_id,
+                radicado=radicado,
+                fecha_actuacion=event_date_val,
+                fecha_inicio_busqueda=fecha_ini_val,
+                fecha_fin_busqueda=fecha_fin_val,
+                despacho_codigo=despacho_codigo,
+                estado="pendiente",
+                estado_busqueda="pendiente",
+                mes_busqueda=mes_str,
+                prioridad=10 if force else 0,
+                source_trigger="auto_queue",
+                force=force
+            )
+            db.add(new_search)
+            db.flush()
+            queued_count += 1
+            
+            current_bc = (busquedas_creadas or 0) + queued_count
+            print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={new_search.id}")
+            
+    if queued_count > 0:
+        db.commit()
+        print(f"[auto_queue_publicaciones_for_case] Encoladas/reactivadas {queued_count} busquedas para {radicado} (company_id={company_id})")
+        
+    return queued_count
                 
     if queued_count > 0:
         db.commit()
