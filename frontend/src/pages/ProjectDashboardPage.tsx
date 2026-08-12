@@ -8,7 +8,7 @@ import {
   ChevronDown, Calendar, PieChart as PieIcon, BarChart as BarIcon, 
   TrendingUp, Users, Activity, Flag, Settings, Layers, Users2, Database,
   PanelLeftClose, PanelLeftOpen, AlertTriangle, CalendarRange, ArrowLeft,
-  ChevronLeft, Trash2, Edit3
+  ChevronLeft, Trash2, Edit3, Tag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
