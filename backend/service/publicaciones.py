@@ -919,12 +919,16 @@ def auto_queue_publicaciones_for_case(db, case, current_user=None, force=False, 
                 source_trigger="auto_queue",
                 force=force
             )
-            db.add(new_search)
-            db.flush()
-            queued_count += 1
             
-            current_bc = (busquedas_creadas or 0) + queued_count
-            print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={new_search.id}")
+            try:
+                db.add(new_search)
+                db.flush()
+                queued_count += 1
+                current_bc = (busquedas_creadas or 0) + queued_count
+                print(f"[PUBLICACIONES][QUEUE_CREATED] job_id={job_str} company_id={company_id} radicado={radicado} casos_procesados={cp_str} busquedas_creadas={current_bc} mes_busqueda={mes_str} search_id={new_search.id}")
+            except Exception as ex_add:
+                db.rollback()
+                print(f"[PUBLICACIONES][QUEUE_ADD_SKIPPED] company_id={company_id} radicado={radicado} mes_busqueda={mes_str} reason={ex_add}")
             
     if queued_count > 0:
         db.commit()
