@@ -2,20 +2,18 @@
 # Coolify: Build Pack=Dockerfile, Dockerfile Location=/Dockerfile, Ports Exposes=8000
 
 # Stage 1: Build the React application
-FROM node:18-alpine AS build_frontend
+FROM node:20-slim AS build_frontend
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
+# Copiar dependencias del frontend
+COPY frontend/package*.json ./
+RUN npm install --legacy-peer-deps
 
-RUN if [ -f "frontend/package.json" ]; then cd frontend && npm install; else npm install; fi
-COPY . ./
-RUN if [ -d "frontend" ]; then cd frontend && npm run build; else npm run build; fi
-
-RUN mkdir -p /app/dist && \
-    if [ -d "frontend/dist" ]; then cp -a frontend/dist/. /app/dist/ ; \
-    elif [ -d "dist" ]; then cp -a dist/. /app/dist/ ; fi
+# Copiar código del frontend y compilar con memoria optimizada
+COPY frontend/ ./
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN npm run build
 
 # Stage 2: Python 3.11 + FastAPI Single Container
 FROM python:3.11-slim
@@ -31,7 +29,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir aiofiles
 
 COPY . .
-COPY --from=build_frontend /app/dist /app/dist
+COPY --from=build_frontend /app/frontend/dist /app/dist
 
 EXPOSE 8000
 

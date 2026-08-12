@@ -19,3 +19,9 @@ scratch/
 tmp/
 *.xlsx
 *.docx
+*.pdf
+test_*.py
+inspect_*.py
+clean_*.py
+check_*.py
+populate_*.py
