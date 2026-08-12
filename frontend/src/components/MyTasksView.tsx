@@ -119,12 +119,6 @@ export function MyTasksView() {
                   Panel central de litigio y gestión de términos legales
                </p>
             </div>
-             {user?.sync_with_clickup && (
-               <Button onClick={handleSyncClickup} disabled={isSyncing} variant="outline" className="h-12 px-8 rounded-2xl bg-card border-border/50 hover:bg-muted text-foreground font-black text-[11px] uppercase tracking-widest transition-all shadow-xl gap-3">
-                  <RefreshCw className={cn("h-4 w-4 text-primary", isSyncing && "animate-spin")} />
-                  {isSyncing ? "Sincronizando..." : "Sincronizar ClickUp"}
-               </Button>
-             )}
           </div>
 
           <Tabs defaultValue="assigned" className="w-full" onValueChange={setActiveTab}>
