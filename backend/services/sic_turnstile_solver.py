@@ -84,18 +84,15 @@ def fetch_sic_actuations_live(anio: str, numero: str, cedula: str = ""):
     """
     Solves Turnstile automatically using CapSolver / 2Captcha API or Playwright stealth
     and fetches 100% real actuations from SIC API.
+    Tries with CC first; if 403, retries without CC.
     """
     token = get_turnstile_token_capsolver() or get_turnstile_token_2captcha()
     
     if not token:
-        logger.warning("No API solver token available, attempting stealth fetch...")
-        # Stealth fallback return empty if no token API key configured
+        logger.warning("No API solver token available - CAPSOLVER_API_KEY not configured")
         return None
 
-    api_url = f"https://apiexternotramites.sic.gov.co/consulta-externa/v1/radicados/anio/{anio}/numeros/{numero}"
-    if cedula:
-        api_url += f"?tipoDocumento=CC&numeroDocumento={cedula}"
-
+    base_url = f"https://apiexternotramites.sic.gov.co/consulta-externa/v1/radicados/anio/{anio}/numeros/{numero}"
     headers = {
         "Accept": "application/json, text/plain, */*",
         "Origin": "https://consultatramites.sic.gov.co",
@@ -104,14 +101,29 @@ def fetch_sic_actuations_live(anio: str, numero: str, cedula: str = ""):
         "X-Turnstile-Token": token
     }
 
+    # Try with CC first, then without if 403
+    attempts = []
+    if cedula:
+        attempts.append({"tipoDocumento": "CC", "numeroDocumento": cedula})
+    attempts.append({})
+
     try:
-        resp = requests.get(api_url, headers=headers, timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("success") and data.get("data"):
-                return data["data"].get("content", [])
-        else:
-            logger.error(f"SIC API HTTP {resp.status_code}: {resp.text[:200]}")
+        for params in attempts:
+            resp = requests.get(base_url, headers=headers, params=params, timeout=15)
+            logger.info(f"SIC API HTTP {resp.status_code} for {anio}-{numero} params={params}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success") and data.get("data"):
+                    return data["data"].get("content", [])
+                else:
+                    logger.warning(f"SIC returned no data: {data.get('message', '')}")
+                    return []
+            elif resp.status_code == 403:
+                logger.warning(f"SIC 403 with params={params}, trying next...")
+                continue
+            else:
+                logger.error(f"SIC API HTTP {resp.status_code}: {resp.text[:200]}")
+                break
     except Exception as e:
         logger.error(f"Error calling SIC API: {e}")
 
@@ -168,6 +180,7 @@ def sync_sic_case_to_db(db_session, case_id: int, items: list):
         db_session.execute(text("""
             INSERT INTO case_events (case_id, company_id, event_date, title, detail, event_hash, con_documentos)
             VALUES (:cid, :comp_id, :date, :title, :detail, :hash, false)
+            ON CONFLICT (case_id, event_hash) DO NOTHING
         """), {
             "cid": case_id,
             "comp_id": comp_id,
