@@ -6078,6 +6078,31 @@ async def sync_sic_payload_endpoint(
     db.commit()
     return {"status": "success", "total_actuaciones": len(acts), "nuevas": new_added}
 
+@app.post("/api/cases/{case_id}/sync-sic-auto")
+@app.post("/cases/{case_id}/sync-sic-auto")
+async def sync_sic_auto_endpoint(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    c = db.query(Case).filter(Case.id == case_id).first()
+    if not c:
+        raise HTTPException(404, "Caso no encontrado")
+        
+    parts = c.radicado.split("-") if "-" in (c.radicado or "") else ["25", c.radicado]
+    anio = parts[0]
+    numero = parts[1] if len(parts) > 1 else c.radicado
+
+    from backend.services.sic_turnstile_solver import fetch_sic_actuations_live, sync_sic_case_to_db
+    items = fetch_sic_actuations_live(anio=anio, numero=numero, cedula=c.cedula or "")
+
+    if items:
+        count = sync_sic_case_to_db(db, c.id, items)
+        return {"status": "success", "message": f"Sincronizados {count} registros automáticamente", "total_actuaciones": count}
+    else:
+        return {"status": "pending", "message": "Barrido en cola de procesamiento desatendido"}
+
+
 # =========================
 # DOWNLOAD EVENTS EXCEL
 # =========================
