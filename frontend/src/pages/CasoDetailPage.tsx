@@ -42,7 +42,7 @@ import {
 } from '@/services/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PublicacionesPanel } from '@/components/PublicacionesPanel';
-import { SicLiveSync } from '@/components/SicLiveSync';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle2, ListPlus, MoreVertical, MessageSquare, Plus, Flag, Trash2, Zap, Database } from 'lucide-react';
 import {
@@ -943,21 +943,7 @@ export default function CasoDetailPage() {
         </div>
       )}
 
-      {/* Componente de Sincronización en Vivo SIC */}
-      {isSicCase && caseData && (
-        <SicLiveSync 
-          caseId={caseData.id} 
-          radicado={caseData.radicado} 
-          cedula={caseData.cedula || ''} 
-          onSyncComplete={() => {
-            if (id) {
-              getCaseEventsById(Number(id)).then(res => setEvents(res.items || []));
-            } else if (caseData.id) {
-              getCaseEventsById(caseData.id).then(res => setEvents(res.items || []));
-            }
-          }} 
-        />
-      )}
+
 
 
       <Card>
