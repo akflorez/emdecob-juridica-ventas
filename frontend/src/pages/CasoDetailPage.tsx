@@ -940,9 +940,36 @@ export default function CasoDetailPage() {
             </Button>
           )}
         </div>
+      {/* Banner SIC */}
+      {isSicCase && (
+        <div className="p-4 rounded-xl border bg-blue-500/10 border-blue-500/30 text-blue-900 dark:text-blue-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-start gap-3">
+            <Building2 className="h-5 w-5 mt-0.5 text-blue-600 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Superintendencia de Industria y Comercio (SIC)</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Proceso ante la SIC. Todas las actuaciones se sincronizan con el expediente oficial.
+              </p>
+            </div>
+          </div>
+          <Button 
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const rad = caseData.radicado || '';
+              const parts = rad.split('-');
+              const anio = parts.length > 1 ? parts[0] : '25';
+              const num = parts.length > 1 ? parts[1] : rad;
+              window.open(`https://consultatramites.sic.gov.co/consulta-externa?anio=${anio}&numero=${num}`, '_blank');
+            }}
+            className="gap-1.5 shrink-0 border-blue-300 dark:border-blue-700 hover:bg-blue-500/20"
+          >
+            <ExternalLink className="h-4 w-4 text-blue-600" />
+            Ver en Portal SIC
+          </Button>
+        </div>
       )}
 
-      {/* Información General */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
