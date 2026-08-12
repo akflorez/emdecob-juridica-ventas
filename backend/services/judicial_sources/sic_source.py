@@ -184,34 +184,47 @@ class SICConnector(JudicialSourceConnector):
         meta = metadata or {}
         
         actuaciones = []
-        # Si la respuesta contiene lista de actuaciones/eventos
-        items = tramite_info if isinstance(tramite_info, list) else tramite_info.get("actuaciones", [])
+        # Si la respuesta contiene lista de actuaciones/eventos en content o actuaciones
+        items = tramite_info if isinstance(tramite_info, list) else (tramite_info.get("content", []) or tramite_info.get("actuaciones", []))
         
         for item in items:
-            fecha_str = item.get("fecha") or item.get("fechaRadicacion") or datetime.utcnow().strftime("%Y-%m-%d")
-            act_title = item.get("actuacion") or item.get("evento") or "Actuación SIC"
-            tramite = item.get("tramite") or "DEMANDA PROTECCIÓN CONSUMIDOR"
-            solicitante = item.get("solicitante") or item.get("destinatario") or ""
-            consecutivo = str(item.get("consecutivo", "0"))
+            raw_fecha = str(item.get("fecha") or item.get("fechaRadicado") or item.get("fechaRadicacion") or "").strip()
+            fecha_str = ""
+            if raw_fecha:
+                if "/" in raw_fecha:
+                    parts = raw_fecha.split()[0].split("/")
+                    if len(parts) == 3:
+                        if len(parts[2]) == 4:
+                            fecha_str = f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                        else:
+                            fecha_str = f"20{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                elif "-" in raw_fecha:
+                    fecha_str = raw_fecha[:10]
+            if not fecha_str:
+                fecha_str = datetime.utcnow().strftime("%Y-%m-%d")
+
+            act_title = (item.get("actuacion") or item.get("actuacionRadicado") or item.get("evento") or item.get("eventoRadicado") or "Actuación SIC").strip()
+            tramite = (item.get("tramite") or item.get("tramiteRadicado") or "DEMANDA PROTECCIÓN CONSUMIDOR JURISDICCIONAL").strip()
+            solicitante = (item.get("solicitante") or item.get("solicitanteDestinatario") or item.get("destinatario") or "").strip()
+            tipo = (item.get("tipo") or item.get("tipoRadicado") or "").strip()
             
-            # Construir URL de descarga si existe
-            doc_id = item.get("documentoId") or item.get("idDocumento")
-            doc_url = None
-            if doc_id:
-                doc_url = f"{self.base_url}/v1/radicados/anio/{anio}/numeros/{numero}/consecutivos/{consecutivo}/documentos/{doc_id}"
-                
+            anotacion_parts = [f"Trámite: {tramite}"]
+            if tipo: anotacion_parts.append(f"Tipo: {tipo}")
+            if solicitante: anotacion_parts.append(f"Sujeto: {solicitante}")
+            
             actuaciones.append({
-                "fecha": fecha_str[:10] if len(fecha_str) >= 10 else fecha_str,
+                "fecha": fecha_str,
                 "actuacion": act_title,
-                "anotacion": f"Trámite: {tramite} | Tipo: {item.get('tipo', '')} | Sujeto: {solicitante}",
-                "fecha_registro": fecha_str,
-                "url_documento": doc_url
+                "anotacion": " | ".join(anotacion_parts),
+                "fecha_registro": raw_fecha or fecha_str,
+                "url_documento": None
             })
             
+        # Ordenar actuaciones de la más reciente a la más antigua
+        actuaciones.sort(key=lambda x: x.get("fecha", ""), reverse=True)
+        
         # Determinar última actuación
-        ultima_act = None
-        if actuaciones:
-            ultima_act = actuaciones[0].get("fecha")
+        ultima_act = actuaciones[0].get("fecha") if actuaciones else None
             
         return {
             "radicado": radicado,

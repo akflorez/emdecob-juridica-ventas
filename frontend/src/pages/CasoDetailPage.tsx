@@ -461,9 +461,16 @@ export default function CasoDetailPage() {
     });
   }, [events, searchText, dateFrom, dateTo]);
 
+  const isSicCase = useMemo(() => {
+    const juz = (caseData?.juzgado || '').toUpperCase();
+    const fuente = (caseData?.fuente_encontrado || '').toUpperCase();
+    const rad = caseData?.radicado || radicado || '';
+    return juz.includes('SIC') || fuente.includes('SIC') || /^\d{2}-\d+/.test(rad);
+  }, [caseData, radicado]);
+
   const actuacionesConDocumentos = useMemo(
-    () => events.filter(e => e.con_documentos).length,
-    [events]
+    () => isSicCase ? 0 : events.filter(e => e.con_documentos).length,
+    [events, isSicCase]
   );
 
   const handleDownloadExcel = () => {
@@ -1138,7 +1145,7 @@ export default function CasoDetailPage() {
                         <TableHead className="w-[110px] sticky top-0 bg-muted z-10">Fecha</TableHead>
                         <TableHead className="w-[200px] sticky top-0 bg-muted z-10">Actuación</TableHead>
                         <TableHead className="sticky top-0 bg-muted z-10">Anotación</TableHead>
-                        <TableHead className="w-[60px] sticky top-0 bg-muted z-10 text-center">Docs</TableHead>
+                        {!isSicCase && <TableHead className="w-[60px] sticky top-0 bg-muted z-10 text-center">Docs</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1164,29 +1171,31 @@ export default function CasoDetailPage() {
                                 <p className="line-clamp-2">{event.detail || '—'}</p>
                               </TableCell>
 
-                              <TableCell className="text-center">
-                                {hasDocuments && idReg ? (
-                                  <button
-                                    onClick={() => handleToggleDocumentos(event)}
-                                    disabled={isLoadingDoc}
-                                    title="Ver documentos"
-                                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-500/10 text-blue-500 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
-                                  >
-                                    {isLoadingDoc ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : isExpanded ? (
-                                      <ChevronDown className="h-3 w-3" />
-                                    ) : (
-                                      <Paperclip className="h-3 w-3" />
-                                    )}
-                                  </button>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs">—</span>
-                                )}
-                              </TableCell>
+                              {!isSicCase && (
+                                <TableCell className="text-center">
+                                  {hasDocuments && idReg ? (
+                                    <button
+                                      onClick={() => handleToggleDocumentos(event)}
+                                      disabled={isLoadingDoc}
+                                      title="Ver documentos"
+                                      className="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-500/10 text-blue-500 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                                    >
+                                      {isLoadingDoc ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : isExpanded ? (
+                                        <ChevronDown className="h-3 w-3" />
+                                      ) : (
+                                        <Paperclip className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </TableCell>
+                              )}
                             </TableRow>
 
-                            {isExpanded && docsState && (
+                            {isExpanded && docsState && !isSicCase && (
                               <TableRow className="bg-primary/5 hover:bg-primary/5">
                                 <TableCell colSpan={4} className="py-3">
                                   <div className="pl-6">
