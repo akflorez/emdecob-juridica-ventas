@@ -2020,6 +2020,14 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(run_publicaciones_worker_loop())
     print("[SYNC] Worker de publicaciones automático iniciado")
 
+    # --- SCHEDULER DIARIO SIC (9 AM hora Colombia) ---
+    try:
+        from backend.services.sic_scheduler import sic_daily_scheduler_loop
+        asyncio.create_task(sic_daily_scheduler_loop(engine))
+        print("[SIC-SCHEDULER] Programador diario SIC iniciado (consulta a las 9:00 AM hora Colombia)")
+    except Exception as e:
+        print(f"[SIC-SCHEDULER] No se pudo iniciar el scheduler SIC: {e}")
+
     yield
 
     print(" Deteniendo EMDECOB Consultas...")
