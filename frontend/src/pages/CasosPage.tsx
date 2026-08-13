@@ -110,7 +110,8 @@ const generateMonthOptions = () => {
 };
 
 const MONTH_OPTIONS = generateMonthOptions();
-const POLL_INTERVAL = 30_000; // 30 segundos
+const BATCH_VALIDATION_SIZE = 50;
+const POLL_INTERVAL = 60_000; // 60 segundos (antes 30)
 
 export default function CasosPage() {
   const { user } = useAuth();
