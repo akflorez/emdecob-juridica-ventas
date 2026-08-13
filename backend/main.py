@@ -9011,6 +9011,33 @@ async def delete_workspace(
         print(f"[PROJECTS] Error deleting workspace: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al eliminar espacio: {str(e)}")
 
+@app.put("/api/projects/folders/{folder_id}")
+@app.put("/projects/folders/{folder_id}")
+async def update_folder(
+    folder_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    f = db.query(Folder).filter(Folder.id == folder_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="Carpeta no encontrada")
+    
+    ws = db.query(Workspace).filter(Workspace.id == f.workspace_id).first()
+    if ws and ws.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta carpeta")
+        
+    try:
+        if "name" in data and data["name"] and str(data["name"]).strip():
+            f.name = str(data["name"]).strip()
+        db.commit()
+        db.refresh(f)
+        return f
+    except Exception as e:
+        db.rollback()
+        print(f"[PROJECTS] Error updating folder: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al editar carpeta: {str(e)}")
+
 @app.delete("/api/projects/folders/{folder_id}")
 @app.delete("/projects/folders/{folder_id}")
 async def delete_folder(
@@ -9034,6 +9061,33 @@ async def delete_folder(
         db.rollback()
         print(f"[PROJECTS] Error deleting folder: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al eliminar carpeta: {str(e)}")
+
+@app.put("/api/projects/lists/{list_id}")
+@app.put("/projects/lists/{list_id}")
+async def update_list(
+    list_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    l = db.query(ProjectList).filter(ProjectList.id == list_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Lista no encontrada")
+    
+    ws = db.query(Workspace).filter(Workspace.id == l.workspace_id).first()
+    if ws and ws.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta lista")
+        
+    try:
+        if "name" in data and data["name"] and str(data["name"]).strip():
+            l.name = str(data["name"]).strip()
+        db.commit()
+        db.refresh(l)
+        return l
+    except Exception as e:
+        db.rollback()
+        print(f"[PROJECTS] Error updating list: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al editar lista: {str(e)}")
 
 @app.delete("/api/projects/lists/{list_id}")
 @app.delete("/projects/lists/{list_id}")

@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { 
   getWorkspaces, getTasks, importClickUp, updateTask, getUsers,
   createWorkspace, createFolder, createList, addWorkspaceMember, createTask,
-  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, createTag, createQuickUser,
+  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, updateFolder, updateList, createTag, createQuickUser,
   getNotificationConfig, updateNotificationConfig,
   type Workspace, type Task as TaskType, type User, type NotificationConfigResponse
 } from "@/services/api";
@@ -118,6 +118,10 @@ export default function ProjectDashboardPage() {
   const [clickupToken, setClickupToken] = useState<string>(localStorage.getItem('clickup_token') || '');
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<number | null>(null);
   const [editWorkspaceName, setEditWorkspaceName] = useState("");
+  const [editingFolderId, setEditingFolderId] = useState<number | null>(null);
+  const [editFolderName, setEditFolderName] = useState("");
+  const [editingListId, setEditingListId] = useState<number | null>(null);
+  const [editListName, setEditListName] = useState("");
 
 
   useEffect(() => {
@@ -684,29 +688,66 @@ export default function ProjectDashboardPage() {
                                     <motion.div animate={{ rotate: expandedFolders.has(f.id) ? 0 : -90 }}>
                                       <ChevronDown className="h-3 w-3 text-muted-foreground" />
                                     </motion.div>
-                                    <span className="text-[11px] font-bold text-foreground/70 flex-1 truncate">{f.name}</span>
+                                    {editingFolderId === f.id ? (
+                                      <Input 
+                                        value={editFolderName}
+                                        onChange={(e) => setEditFolderName(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={async (e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                try {
+                                                    await updateFolder(f.id, { name: editFolderName });
+                                                    setEditingFolderId(null);
+                                                    toast.success("Carpeta actualizada");
+                                                    fetchInitialData(true);
+                                                } catch (err: any) {
+                                                    toast.error("Error al actualizar", { description: err.message });
+                                                }
+                                            } else if (e.key === 'Escape') {
+                                                setEditingFolderId(null);
+                                            }
+                                        }}
+                                        autoFocus
+                                        className="h-6 text-[11px] font-bold flex-1 min-w-0"
+                                      />
+                                    ) : (
+                                      <span className="text-[11px] font-bold text-foreground/70 flex-1 truncate">{f.name}</span>
+                                    )}
                                     {!user?.sync_with_clickup && (
-                                       <button
-                                         onClick={async (e) => {
-                                           e.stopPropagation();
-                                           if (window.confirm(`¿Estás seguro de que deseas eliminar la carpeta "${f.name}"? Se eliminarán todas sus listas y tareas de forma permanente.`)) {
-                                             try {
-                                               await deleteFolder(f.id);
-                                               toast.success(`Carpeta "${f.name}" eliminada con éxito`);
-                                               if (selectedFolderId === f.id) {
-                                                 setSelectedFolderId(null);
-                                                 setSelectedListId(null);
+                                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setEditingFolderId(f.id);
+                                             setEditFolderName(f.name);
+                                           }}
+                                           className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all duration-200"
+                                         >
+                                           <Edit3 className="h-3.5 w-3.5" />
+                                         </button>
+                                         <button
+                                           onClick={async (e) => {
+                                             e.stopPropagation();
+                                             if (window.confirm(`¿Estás seguro de que deseas eliminar la carpeta "${f.name}"? Se eliminarán todas sus listas y tareas de forma permanente.`)) {
+                                               try {
+                                                 await deleteFolder(f.id);
+                                                 toast.success(`Carpeta "${f.name}" eliminada con éxito`);
+                                                 if (selectedFolderId === f.id) {
+                                                   setSelectedFolderId(null);
+                                                   setSelectedListId(null);
+                                                 }
+                                                 fetchInitialData();
+                                               } catch (err: any) {
+                                                 toast.error("Error al eliminar carpeta", { description: err.message });
                                                }
-                                               fetchInitialData();
-                                             } catch (err: any) {
-                                               toast.error("Error al eliminar carpeta", { description: err.message });
                                              }
-                                           }
-                                         }}
-                                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-all duration-200"
-                                       >
-                                         <Trash2 className="h-3.5 w-3.5" />
-                                       </button>
+                                           }}
+                                           className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-all duration-200"
+                                         >
+                                           <Trash2 className="h-3.5 w-3.5" />
+                                         </button>
+                                       </div>
                                      )}
                                   </div>
                                   <AnimatePresence>
@@ -724,30 +765,67 @@ export default function ProjectDashboardPage() {
                                             onClick={(e) => { e.stopPropagation(); setSelectedListId(list.id); setDetailView(null); }}
                                             className={`ml-5 p-2 rounded-lg cursor-pointer text-[11px] transition-all flex items-center justify-between group ${selectedListId === list.id ? "bg-primary text-primary-foreground font-bold" : "text-muted-foreground hover:text-foreground"}`}
                                           >
-                                             <span className="flex-1 truncate">{list.name}</span>
-                                             <div className="flex items-center gap-1">
+                                             {editingListId === list.id ? (
+                                               <Input 
+                                                 value={editListName}
+                                                 onChange={(e) => setEditListName(e.target.value)}
+                                                 onClick={(e) => e.stopPropagation()}
+                                                 onKeyDown={async (e) => {
+                                                     if (e.key === 'Enter') {
+                                                         e.preventDefault();
+                                                         try {
+                                                             await updateList(list.id, { name: editListName });
+                                                             setEditingListId(null);
+                                                             toast.success("Lista actualizada");
+                                                             fetchInitialData(true);
+                                                         } catch (err: any) {
+                                                             toast.error("Error al actualizar", { description: err.message });
+                                                         }
+                                                     } else if (e.key === 'Escape') {
+                                                         setEditingListId(null);
+                                                     }
+                                                 }}
+                                                 autoFocus
+                                                 className="h-6 text-[11px] font-bold flex-1 min-w-0 text-foreground"
+                                               />
+                                             ) : (
+                                               <span className="flex-1 truncate">{list.name}</span>
+                                             )}
+                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {selectedListId === list.id && <Zap className="h-3 w-3 animate-pulse group-hover:hidden" />}
                                                 {!user?.sync_with_clickup && (
-                                                  <button
-                                                    onClick={async (e) => {
-                                                      e.stopPropagation();
-                                                      if (window.confirm(`¿Estás seguro de que deseas eliminar la lista "${list.name}"? Se eliminarán todas sus tareas de forma permanente.`)) {
-                                                        try {
-                                                          await deleteList(list.id);
-                                                          toast.success(`Lista "${list.name}" eliminada con éxito`);
-                                                          if (selectedListId === list.id) {
-                                                            setSelectedListId(null);
+                                                  <>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingListId(list.id);
+                                                        setEditListName(list.name);
+                                                      }}
+                                                      className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all duration-200"
+                                                    >
+                                                      <Edit3 className="h-3 w-3" />
+                                                    </button>
+                                                    <button
+                                                      onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (window.confirm(`¿Estás seguro de que deseas eliminar la lista "${list.name}"? Se eliminarán todas sus tareas de forma permanente.`)) {
+                                                          try {
+                                                            await deleteList(list.id);
+                                                            toast.success(`Lista "${list.name}" eliminada con éxito`);
+                                                            if (selectedListId === list.id) {
+                                                              setSelectedListId(null);
+                                                            }
+                                                            fetchInitialData();
+                                                          } catch (err: any) {
+                                                            toast.error("Error al eliminar lista", { description: err.message });
                                                           }
-                                                          fetchInitialData();
-                                                        } catch (err: any) {
-                                                          toast.error("Error al eliminar lista", { description: err.message });
                                                         }
-                                                      }
-                                                    }}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 text-muted-foreground group-hover:text-destructive rounded transition-all duration-200"
-                                                  >
-                                                    <Trash2 className="h-3 w-3" />
-                                                  </button>
+                                                      }}
+                                                      className="p-1 hover:bg-destructive/20 text-muted-foreground group-hover:text-destructive rounded transition-all duration-200"
+                                                    >
+                                                      <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                  </>
                                                 )}
                                               </div>
                                           </motion.div>

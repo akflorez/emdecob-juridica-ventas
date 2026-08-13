@@ -1167,8 +1167,16 @@ export function deleteWorkspace(workspaceId: number) {
   return apiFetch<{ ok: boolean; message: string }>(`/projects/workspaces/${workspaceId}`, { method: "DELETE" });
 }
 
+export function updateFolder(folderId: number, data: { name: string }) {
+  return apiFetch<WorkspaceFolder>(`/projects/folders/${folderId}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
 export function deleteFolder(folderId: number) {
   return apiFetch<{ ok: boolean; message: string }>(`/projects/folders/${folderId}`, { method: "DELETE" });
+}
+
+export function updateList(listId: number, data: { name: string }) {
+  return apiFetch<WorkspaceList>(`/projects/lists/${listId}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function deleteList(listId: number) {
