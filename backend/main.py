@@ -2498,8 +2498,53 @@ async def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retorna todos los usuarios activos del sistema para asignaci?n de tareas."""
-    return db.query(User).filter(User.is_active == True).all()
+    """Retorna todos los usuarios activos del sistema para asignación de tareas, auto-sincronizando abogados de casos."""
+    if current_user.company_id:
+        try:
+            abogados_casos = db.query(Case.abogado).filter(
+                Case.company_id == current_user.company_id, 
+                Case.abogado.isnot(None), 
+                Case.abogado != ''
+            ).distinct().all()
+            
+            usuarios_actuales = db.query(User.nombre).filter(
+                User.company_id == current_user.company_id
+            ).all()
+            nombres_usuarios = set((u[0] or '').strip().lower() for u in usuarios_actuales if u[0])
+            
+            nuevos_usuarios = False
+            for (abo_name,) in abogados_casos:
+                if not abo_name: continue
+                abo_name_clean = str(abo_name).strip()
+                if not abo_name_clean: continue
+                
+                if abo_name_clean.lower() not in nombres_usuarios:
+                    import uuid
+                    dummy_email = f"abogado_{uuid.uuid4().hex[:8]}@virtual.local"
+                    dummy_username = f"abo_{uuid.uuid4().hex[:6]}"
+                    hashed_password = _hash_password("Juridico2026*")
+                    new_u = User(
+                        email=dummy_email,
+                        username=dummy_username,
+                        hashed_password=hashed_password,
+                        nombre=abo_name_clean.title(),
+                        role="ABOGADO",
+                        company_id=current_user.company_id,
+                        is_active=True
+                    )
+                    db.add(new_u)
+                    nuevos_usuarios = True
+                    nombres_usuarios.add(abo_name_clean.lower())
+            
+            if nuevos_usuarios:
+                db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"[SYNC ERROR] Error sincronizando abogados a usuarios: {e}")
+
+    if is_global_superadmin(current_user):
+        return db.query(User).filter(User.is_active == True).all()
+    return db.query(User).filter(User.is_active == True, User.company_id == current_user.company_id).all()
 
 def parse_fecha(fecha_str: Optional[str]) -> Optional[date]:
     if not fecha_str:
