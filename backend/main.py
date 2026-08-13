@@ -1295,7 +1295,6 @@ async def lifespan(app: FastAPI):
 
             # Configurar sync_with_clickup inicial para usuarios
             from backend.models import User
-            from backend.db import SessionLocal
             db_init = SessionLocal()
             try:
                 for u in db_init.query(User).all():
