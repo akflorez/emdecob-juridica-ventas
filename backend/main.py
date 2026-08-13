@@ -9514,7 +9514,13 @@ async def create_task(
         db.add(task)
         db.commit()
         db.refresh(task)
-        return task
+        task_with_rels = db.query(Task).options(
+            selectinload(Task.subtasks),
+            selectinload(Task.tags),
+            selectinload(Task.attachments),
+            joinedload(Task.case)
+        ).filter(Task.id == task.id).first()
+        return task_with_rels or task
     except Exception as e:
         db.rollback()
         import traceback
@@ -9780,7 +9786,13 @@ async def update_task(
 
         db.commit()
         db.refresh(task)
-        return task
+        task_with_rels = db.query(Task).options(
+            selectinload(Task.subtasks),
+            selectinload(Task.tags),
+            selectinload(Task.attachments),
+            joinedload(Task.case)
+        ).filter(Task.id == task.id).first()
+        return task_with_rels or task
     except Exception as e:
         db.rollback()
         import traceback
