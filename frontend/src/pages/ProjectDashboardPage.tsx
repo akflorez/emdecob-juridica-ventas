@@ -950,8 +950,8 @@ export default function ProjectDashboardPage() {
                     )}
 
                     {activeTab === "calendar" && (
-                      <div className="h-full p-6">
-                         <div className="h-full bg-card rounded-3xl border border-border/40 p-6 overflow-hidden shadow-2xl">
+                      <div className="h-full p-6 overflow-y-auto custom-scrollbar">
+                         <div className="min-h-[650px] h-full bg-card rounded-3xl border border-border/40 p-6 overflow-hidden shadow-2xl">
                             <BigCalendar
                               localizer={localizer}
                               events={calendarEvents}
