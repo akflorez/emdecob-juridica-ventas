@@ -11149,6 +11149,44 @@ async def create_tag(data: dict = Body(...), db: Session = Depends(get_db), curr
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/projects/tags/{tag_id}")
+@app.put("/projects/tags/{tag_id}")
+async def update_tag(tag_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Etiqueta no encontrada")
+    
+    name = data.get("name")
+    if name:
+        tag.name = name.upper()
+        
+    color = data.get("color")
+    if color:
+        tag.color = color
+        
+    try:
+        db.commit()
+        db.refresh(tag)
+        return tag
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/projects/tags/{tag_id}")
+@app.delete("/projects/tags/{tag_id}")
+async def delete_tag(tag_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Etiqueta no encontrada")
+        
+    try:
+        db.delete(tag)
+        db.commit()
+        return {"ok": True, "message": "Etiqueta eliminada correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/projects/quick-users")
 @app.post("/projects/quick-users")
 async def create_quick_user(data: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

@@ -51,12 +51,13 @@ import { toast } from "sonner";
 import { 
   getWorkspaces, getTasks, importClickUp, updateTask, getUsers,
   createWorkspace, createFolder, createList, addWorkspaceMember, createTask,
-  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, updateFolder, updateList, createTag, createQuickUser,
+  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, updateFolder, updateList, createTag, getTags, updateTag, deleteTag, createQuickUser,
   getNotificationConfig, updateNotificationConfig,
-  type Workspace, type Task as TaskType, type User, type NotificationConfigResponse
+  type Workspace, type Task as TaskType, type User, type NotificationConfigResponse, type Tag
 } from "@/services/api";
 
 import { TaskDrawer } from "@/components/TaskDrawer";
+import { ManageTags } from "@/components/ManageTags";
 import { Calendar as BigCalendar, momentLocalizer, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -292,6 +293,44 @@ export default function ProjectDashboardPage() {
     
     return grouped;
   }, [filteredTasks, dynamicBoardColumns]);
+
+  const dynamicTagColumns = useMemo(() => {
+    const allTags = new Map<number, Tag>();
+    tasks.forEach(t => {
+      t.tags?.forEach(tag => allTags.set(tag.id, tag));
+    });
+    const columns = Array.from(allTags.values()).map(tag => ({
+      id: tag.id.toString(),
+      label: tag.name,
+      dot: tag.color || '#3b82f6'
+    }));
+    columns.push({ id: 'untagged', label: 'SIN ETIQUETA', dot: '#94a3b8' });
+    return columns;
+  }, [tasks]);
+
+  const tasksByTag = useMemo(() => {
+    const grouped: Record<string, { parentTasks: TaskType[], count: number }> = {};
+    dynamicTagColumns.forEach(col => grouped[col.id] = { parentTasks: [], count: 0 });
+    
+    (filteredTasks || []).forEach(t => {
+      const hasTags = t.tags && t.tags.length > 0;
+      if (!hasTags) {
+        if (grouped['untagged']) {
+          grouped['untagged'].count++;
+          if (!t.parent_id) grouped['untagged'].parentTasks.push(t);
+        }
+      } else {
+        t.tags?.forEach(tag => {
+          const tid = tag.id.toString();
+          if (grouped[tid]) {
+            grouped[tid].count++;
+            if (!t.parent_id) grouped[tid].parentTasks.push(t);
+          }
+        });
+      }
+    });
+    return grouped;
+  }, [filteredTasks, dynamicTagColumns]);
 
   const statsByAssignee = useMemo(() => {
     const map: Record<string, number> = {};
@@ -857,6 +896,7 @@ export default function ProjectDashboardPage() {
                    <TabsTrigger value="list" className="rounded-lg text-[10px] font-black uppercase tracking-widest px-6">Lista</TabsTrigger>
                    <TabsTrigger value="calendar" className="rounded-lg text-[10px] font-black uppercase tracking-widest px-6">Agenda</TabsTrigger>
                    <TabsTrigger value="stats" className="rounded-lg text-[10px] font-black uppercase tracking-widest px-6">Dashboard</TabsTrigger>
+                   <TabsTrigger value="tags_board" className="rounded-lg text-[10px] font-black uppercase tracking-widest px-6 text-primary">Etiquetas</TabsTrigger>
                  </TabsList>
 
                  <div className="flex items-center gap-3">
@@ -922,6 +962,47 @@ export default function ProjectDashboardPage() {
                                              <span className="text-[9px] font-bold text-muted-foreground truncate max-w-[80px]">{task.assignee_name}</span>
                                           </div>
                                           {task.due_date && <span className={`text-[9px] font-black flex items-center gap-1 ${new Date(task.due_date) < new Date() && !task.status.toLowerCase().includes('completado') ? 'text-red-500' : 'text-muted-foreground'}`}><Clock className="h-3 w-3"/> {format(new Date(task.due_date), 'd MMM')}</span>}
+                                       </div>
+                                    </div>
+                                  </Card>
+                                ))}
+                             </div>
+                           </div>
+                         ))}
+                      </div>
+                    )}
+                    {activeTab === "tags_board" && (
+                      <div className="h-full p-6 flex gap-6 overflow-x-auto custom-scrollbar">
+                         {dynamicTagColumns.map((col, colIdx) => (
+                           <div key={col.id} className="min-w-[320px] flex flex-col bg-accent/5 border border-border/40 rounded-3xl p-4 shadow-xl">
+                             <div className="flex items-center justify-between mb-6 px-2">
+                                <div className="flex items-center gap-2">
+                                   <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: col.dot }} />
+                                   <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">{col.label}</h3>
+                                </div>
+                                <Badge variant="outline" className="text-[10px]">{tasksByTag[col.id]?.count || 0}</Badge>
+                             </div>
+                             <div className="flex-1 overflow-y-auto space-y-4 px-1 custom-scrollbar">
+                                {(tasksByTag[col.id]?.parentTasks || []).map(task => (
+                                  <Card key={task.id} className="bg-card/80 border-border/40 hover:border-primary/40 transition-all cursor-pointer shadow-lg overflow-hidden" onClick={() => setSelectedTask(task)}>
+                                    <div className="p-4">
+                                       <div className="flex justify-between items-start mb-3">
+                                          <Badge variant="secondary" className="text-[9px] uppercase tracking-wider">{task.priority || 'Normal'}</Badge>
+                                       </div>
+                                       <h4 className="text-[13px] font-bold leading-snug line-clamp-2 mb-4">{task.title}</h4>
+                                       <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                                          <div className="flex items-center">
+                                             <div className="flex -space-x-2 overflow-hidden mr-2">
+                                                {task.assignees?.map((a, i) => (
+                                                  <div key={i} className="h-5 w-5 rounded-full ring-2 ring-card bg-primary/20 flex items-center justify-center text-[8px] font-black text-primary">{(a.nombre || a.username)[0]}</div>
+                                                ))}
+                                             </div>
+                                             {task.assignees && task.assignees.length > 0 && <span className="text-[9px] font-black text-muted-foreground">{task.assignees[0].nombre || task.assignees[0].username}</span>}
+                                          </div>
+                                          <div className="flex items-center text-[9px] font-black text-muted-foreground">
+                                             <Clock className="h-3 w-3 mr-1" />
+                                             {task.due_date ? moment(task.due_date).format('D MMM') : 'Sin fecha'}
+                                          </div>
                                        </div>
                                     </div>
                                   </Card>
@@ -1117,17 +1198,19 @@ export default function ProjectDashboardPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="py-6 space-y-4">
-             {creationModal.mode !== 'pref' && creationModal.mode !== 'equipo' && (
+             {(creationModal.mode === 'estado' || creationModal.mode === 'etiqueta') ? (
+               <ManageTags mode={creationModal.mode} />
+             ) : creationModal.mode !== 'pref' && creationModal.mode !== 'equipo' ? (
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Nombre</label>
                  <Input 
-                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : creationModal.mode === 'estado' ? 'En Proceso / Cerrado' : creationModal.mode === 'etiqueta' ? 'Urgente / Revisión' : 'Lista de Tareas'}`}
+                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : 'Lista de Tareas'}`}
                    value={newItemName}
                    onChange={(e) => setNewItemName(e.target.value)}
                    className="bg-accent/30 border-border/40 rounded-xl h-12 text-sm font-bold"
                  />
                </div>
-             )}
+             ) : null}
 
              {creationModal.mode === 'equipo' && (
                 <div className="space-y-3">
@@ -1242,18 +1325,22 @@ export default function ProjectDashboardPage() {
              )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreationModal({ ...creationModal, open: false })} className="rounded-xl font-bold">Cancelar</Button>
-            <Button 
-              onClick={handleCreateConfirm} 
-              disabled={
-                isSubmitting || 
-                (creationModal.mode !== 'equipo' && creationModal.mode !== 'pref' && !newItemName.trim()) ||
-                (creationModal.mode === 'equipo' && selectedUserIds.length === 0)
-              } 
-              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-black uppercase tracking-widest px-8"
-            >
-              {isSubmitting ? "Creando..." : "Crear Ahora"}
+            <Button variant="ghost" onClick={() => setCreationModal({ ...creationModal, open: false })} className="rounded-xl font-bold">
+              {creationModal.mode === 'estado' || creationModal.mode === 'etiqueta' ? 'Cerrar' : 'Cancelar'}
             </Button>
+            {creationModal.mode !== 'estado' && creationModal.mode !== 'etiqueta' && (
+              <Button 
+                onClick={handleCreateConfirm} 
+                disabled={
+                  isSubmitting || 
+                  (creationModal.mode !== 'equipo' && creationModal.mode !== 'pref' && !newItemName.trim()) ||
+                  (creationModal.mode === 'equipo' && selectedUserIds.length === 0)
+                } 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-black uppercase tracking-widest px-8"
+              >
+                {isSubmitting ? "Creando..." : "Crear Ahora"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

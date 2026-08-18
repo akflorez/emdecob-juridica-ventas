@@ -1134,6 +1134,14 @@ export function createTag(name: string, color?: string) {
   return apiFetch<Tag>("/projects/tags", { method: "POST", body: JSON.stringify({ name, color }) });
 }
 
+export function updateTag(tagId: number, name: string, color?: string) {
+  return apiFetch<Tag>(`/projects/tags/${tagId}`, { method: "PUT", body: JSON.stringify({ name, color }) });
+}
+
+export function deleteTag(tagId: number) {
+  return apiFetch<{ ok: boolean; message: string }>(`/projects/tags/${tagId}`, { method: "DELETE" });
+}
+
 export function createQuickUser(name: string) {
   return apiFetch<User>("/projects/quick-users", { method: "POST", body: JSON.stringify({ name }) });
 }
