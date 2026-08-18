@@ -1340,6 +1340,9 @@ export default function ProjectDashboardPage() {
                             </>
                           )}
                         </div>
+                      );
+                    })}
+                  </div>
                   {selectedUserIds.length > 0 && (
                     <p className="text-[9px] text-primary font-bold uppercase tracking-wider text-right animate-pulse">
                       {selectedUserIds.length} {selectedUserIds.length === 1 ? 'usuario seleccionado' : 'usuarios seleccionados'}
