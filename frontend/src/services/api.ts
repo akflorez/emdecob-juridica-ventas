@@ -95,10 +95,18 @@ export function forgotPassword(email: string) {
 }
 
 export function resetPassword(data: any) {
-  return apiFetch<{ ok: boolean; message: string }>(
+  return apiFetch<{ message: string }>(
     "/auth/reset-password",
-    { method: "POST", body: JSON.stringify({ email }) },
+    { method: "POST", body: JSON.stringify(data) },
     false
+  );
+}
+
+export function changePassword(data: any) {
+  return apiFetch<{ message: string }>(
+    "/auth/change-password",
+    { method: "POST", body: JSON.stringify(data) },
+    true
   );
 }
 

@@ -37,6 +37,7 @@ import {
   updateNotificationConfig,
   testNotificationEmail,
   getNotificationLogs,
+  changePassword,
   type NotificationConfigResponse,
   type NotificationLogItem,
 } from "@/services/api";
@@ -150,10 +151,7 @@ export default function ConfiguracionPage() {
 
     setIsChangingPassword(true);
     try {
-      await apiFetch("/auth/change-password", {
-        method: "POST",
-        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
-      });
+      await changePassword({ old_password: oldPassword, new_password: newPassword });
       toast({ title: "Éxito", description: "Contraseña actualizada correctamente" });
       setOldPassword("");
       setNewPassword("");
