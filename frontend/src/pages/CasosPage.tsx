@@ -157,6 +157,7 @@ export default function CasosPage() {
 
   const [caseToDelete, setCaseToDelete] = useState<CaseRow | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   
   const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
   const [abogadosList, setAbogadosList] = useState<string[]>([]);
@@ -593,6 +594,24 @@ export default function CasosPage() {
       toast({ title: "Error al descargar", description: error?.message || "Error desconocido", variant: "destructive" });
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente los ${selectedIds.size} casos seleccionados? Esta acción no se puede deshacer.`)) return;
+
+    setIsDeletingSelected(true);
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => deleteCase(id)));
+      toast({ title: "Casos eliminados", description: `Se eliminaron ${ids.length} procesos correctamente.` });
+      setSelectedIds(new Set());
+      fetchData(1);
+    } catch (error: any) {
+      toast({ title: "Error al eliminar", description: error?.message || "Ocurrió un error al eliminar algunos casos", variant: "destructive" });
+    } finally {
+      setIsDeletingSelected(false);
     }
   };
 
@@ -1159,6 +1178,9 @@ export default function CasosPage() {
                   <Button onClick={handleDownloadSelected} disabled={isDownloading} variant="outline" size="sm">
                     {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                     Descargar {selectedIds.size}
+                  </Button>
+                  <Button onClick={handleDeleteSelected} disabled={isDeletingSelected} variant="outline" size="sm" className="text-red-600 hover:text-red-500 border-red-500/30 hover:bg-red-500/10">
+                    {isDeletingSelected ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1.5" />} Eliminar ({selectedIds.size})
                   </Button>
                 </>
               )}
