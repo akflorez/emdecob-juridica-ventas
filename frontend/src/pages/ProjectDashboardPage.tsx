@@ -394,9 +394,9 @@ export default function ProjectDashboardPage() {
         }
       } else if (creationModal.mode === 'pref' && configData) {
         await updateNotificationConfig(configData);
-      } else if (creationModal.mode === 'etiqueta') {
+      } else if (creationModal.mode === 'etiqueta' || creationModal.mode === 'estado') {
         if (!newItemName.trim()) {
-           toast.error("El nombre del estado es requerido");
+           toast.error(`El nombre d${creationModal.mode === 'estado' ? 'el estado' : 'e la etiqueta'} es requerido`);
            setIsSubmitting(false);
            return;
         }
@@ -499,8 +499,10 @@ export default function ProjectDashboardPage() {
         ? 'Miembros agregados' 
         : creationModal.mode === 'pref'
         ? 'Preferencias guardadas'
-        : creationModal.mode === 'etiqueta'
+        : creationModal.mode === 'estado'
         ? 'Estado creado'
+        : creationModal.mode === 'etiqueta'
+        ? 'Etiqueta creada'
         : `${creationModal.mode.charAt(0).toUpperCase() + creationModal.mode.slice(1)} "${newItemName}" cread${creationModal.mode === 'carpeta' || creationModal.mode === 'lista' || creationModal.mode === 'tarea' ? 'a' : 'o'}`;
       toast.success(`${creationModal.title} ${successName} procesado con éxito`);
       setCreationModal({ open: false, mode: '', title: '' });
@@ -556,7 +558,8 @@ export default function ProjectDashboardPage() {
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('carpeta', 'Nueva Carpeta')}><FolderPlus className="mr-2 h-4 w-4" /> Nueva Carpeta</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('lista', 'Nueva Lista')}><ListPlus className="mr-2 h-4 w-4" /> Nueva Lista</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('etiqueta', 'Crear Estado')}><Tag className="mr-2 h-4 w-4" /> Estados</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('estado', 'Crear Estado')}><Activity className="mr-2 h-4 w-4" /> Estados</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('etiqueta', 'Crear Etiqueta de Clasificación')}><Tag className="mr-2 h-4 w-4" /> Etiquetas</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('equipo', 'Gestionar Equipo')}><Users2 className="mr-2 h-4 w-4" /> Equipos</DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => handleActionClick('pref', 'Configuración')}><Settings className="mr-2 h-4 w-4" /> Preferencias</DropdownMenuItem>
               </DropdownMenuContent>
@@ -1118,7 +1121,7 @@ export default function ProjectDashboardPage() {
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Nombre</label>
                  <Input 
-                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : creationModal.mode === 'etiqueta' ? 'En Proceso / Cerrado' : 'Lista de Tareas'}`}
+                   placeholder={`Ej: ${creationModal.mode === 'espacio' ? 'Departamento Legal' : creationModal.mode === 'carpeta' ? 'Procesos 2026' : creationModal.mode === 'estado' ? 'En Proceso / Cerrado' : creationModal.mode === 'etiqueta' ? 'Urgente / Revisión' : 'Lista de Tareas'}`}
                    value={newItemName}
                    onChange={(e) => setNewItemName(e.target.value)}
                    className="bg-accent/30 border-border/40 rounded-xl h-12 text-sm font-bold"
