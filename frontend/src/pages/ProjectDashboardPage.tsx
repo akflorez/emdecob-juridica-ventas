@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { 
   getWorkspaces, getTasks, importClickUp, updateTask, getUsers,
   createWorkspace, createFolder, createList, addWorkspaceMember, createTask,
-  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, updateFolder, updateList, createTag, getTags, updateTag, deleteTag, createQuickUser,
+  deleteWorkspace, deleteFolder, deleteList, updateWorkspace, updateFolder, updateList, createTag, getTags, updateTag, deleteTag, createQuickUser, updateQuickUser,
   getNotificationConfig, updateNotificationConfig,
   type Workspace, type Task as TaskType, type User, type NotificationConfigResponse, type Tag
 } from "@/services/api";
@@ -123,6 +123,8 @@ export default function ProjectDashboardPage() {
   const [editFolderName, setEditFolderName] = useState("");
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editListName, setEditListName] = useState("");
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editUserName, setEditUserName] = useState("");
 
 
   useEffect(() => {
@@ -1252,38 +1254,92 @@ export default function ProjectDashboardPage() {
                     {users.map(u => {
                       const isSelected = selectedUserIds.includes(u.id);
                       const initials = (u.nombre || u.username || 'U').substring(0, 2).toUpperCase();
+                      const isEditing = editingUserId === u.id;
                       return (
                         <div 
                           key={u.id} 
-                          onClick={() => {
-                            setSelectedUserIds(prev => 
-                              prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
-                            );
-                          }}
                           className={cn(
-                            "flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all hover:bg-accent/40 select-none",
+                            "flex items-center justify-between p-2.5 rounded-xl transition-all hover:bg-accent/40 group",
                             isSelected ? "bg-primary/10 border-primary/20" : "border-transparent"
                           )}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center text-[11px] font-black text-primary shadow-sm">
-                              {initials}
+                          {isEditing ? (
+                            <div className="flex-1 flex items-center gap-2 mr-2">
+                              <Input 
+                                value={editUserName} 
+                                onChange={(e) => setEditUserName(e.target.value)} 
+                                className="h-8 text-xs bg-background"
+                                autoFocus
+                                onKeyDown={async (e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (!editUserName.trim()) return;
+                                    try {
+                                      await updateQuickUser(u.id, editUserName.trim());
+                                      setUsers(prev => prev.map(user => user.id === u.id ? { ...user, nombre: editUserName.trim() } : user));
+                                      setEditingUserId(null);
+                                      toast.success("Abogado actualizado");
+                                    } catch (err) {
+                                      toast.error("Error al actualizar");
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    setEditingUserId(null);
+                                  }
+                                }}
+                              />
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" onClick={async () => {
+                                if (!editUserName.trim()) return;
+                                try {
+                                  await updateQuickUser(u.id, editUserName.trim());
+                                  setUsers(prev => prev.map(user => user.id === u.id ? { ...user, nombre: editUserName.trim() } : user));
+                                  setEditingUserId(null);
+                                  toast.success("Abogado actualizado");
+                                } catch (err) {
+                                  toast.error("Error al actualizar");
+                                }
+                              }}>
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-zinc-400 hover:text-zinc-600" onClick={() => setEditingUserId(null)}>
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-foreground">{u.nombre || u.username}</span>
-                              <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">{u.role || 'ABOGADO'}</span>
-                            </div>
-                          </div>
-                          <div className={cn(
-                            "h-5 w-5 rounded-md border flex items-center justify-center transition-all",
-                            isSelected ? "bg-primary border-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20" : "border-muted-foreground/30 hover:border-primary/50"
-                          )}>
-                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                          </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setSelectedUserIds(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}>
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center text-[11px] font-black text-primary shadow-sm">
+                                  {initials}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-foreground">{u.nombre || u.username}</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">{u.role || 'ABOGADO'}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingUserId(u.id);
+                                    setEditUserName(u.nombre || u.username || '');
+                                  }}
+                                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all mr-1"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <div 
+                                  className={cn(
+                                    "h-5 w-5 rounded-md border flex items-center justify-center transition-all cursor-pointer",
+                                    isSelected ? "bg-primary border-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20" : "border-muted-foreground/30 hover:border-primary/50"
+                                  )}
+                                  onClick={() => setSelectedUserIds(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                                >
+                                  {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
                   {selectedUserIds.length > 0 && (
                     <p className="text-[9px] text-primary font-bold uppercase tracking-wider text-right animate-pulse">
                       {selectedUserIds.length} {selectedUserIds.length === 1 ? 'usuario seleccionado' : 'usuarios seleccionados'}

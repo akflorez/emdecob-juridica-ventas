@@ -1146,6 +1146,10 @@ export function createQuickUser(name: string) {
   return apiFetch<User>("/projects/quick-users", { method: "POST", body: JSON.stringify({ name }) });
 }
 
+export function updateQuickUser(userId: number, name: string) {
+  return apiFetch<User>(`/projects/quick-users/${userId}`, { method: "PUT", body: JSON.stringify({ name }) });
+}
+
 export function getStatuses() {
   return apiFetch<string[]>("/projects/statuses");
 }

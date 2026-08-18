@@ -11208,12 +11208,30 @@ async def create_quick_user(data: dict = Body(...), db: Session = Depends(get_db
             nombre=name.title(),
             role="ABOGADO",
             company_id=current_user.company_id,
-            is_active=True
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         return new_user
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/projects/quick-users/{user_id}")
+@app.put("/projects/quick-users/{user_id}")
+async def update_quick_user(user_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_to_update = db.query(User).filter(User.id == user_id).first()
+    if not user_to_update:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    name = data.get("name")
+    if name:
+        user_to_update.nombre = name.title()
+        
+    try:
+        db.commit()
+        db.refresh(user_to_update)
+        return user_to_update
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
