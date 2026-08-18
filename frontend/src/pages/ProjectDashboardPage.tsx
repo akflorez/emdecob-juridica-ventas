@@ -1323,7 +1323,7 @@ export default function ProjectDashboardPage() {
                                     setEditingUserId(u.id);
                                     setEditUserName(u.nombre || u.username || '');
                                   }}
-                                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all mr-1"
+                                  className="p-1.5 opacity-50 hover:opacity-100 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-all mr-1"
                                 >
                                   <Edit3 className="h-3.5 w-3.5" />
                                 </button>
