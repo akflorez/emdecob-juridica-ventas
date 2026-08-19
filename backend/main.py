@@ -2275,9 +2275,23 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
         
         # Validar suspensión de la empresa (Excepto Superadmin)
-        if not is_global_superadmin(user) and user.company_id is not None and user.company:
-            if user.company.estado in ["suspendida_pago", "inactiva", "vencida"]:
-                raise HTTPException(status_code=403, detail="Tu empresa se encuentra suspendida. Por favor contacta al administrador.")
+        try:
+            if not is_global_superadmin(user) and user.company_id is not None and user.company:
+                if user.company.estado in ["suspendida_pago", "inactiva", "vencida"]:
+                    raise HTTPException(status_code=403, detail="Tu empresa se encuentra suspendida. Por favor contacta al administrador.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            if "logo_base64" in str(e).lower() or "column" in str(e).lower():
+                db.rollback()
+                from sqlalchemy import text
+                db.execute(text("ALTER TABLE companies ADD COLUMN logo_base64 TEXT;"))
+                db.commit()
+                if not is_global_superadmin(user) and user.company_id is not None and user.company:
+                    if user.company.estado in ["suspendida_pago", "inactiva", "vencida"]:
+                        raise HTTPException(status_code=403, detail="Tu empresa se encuentra suspendida. Por favor contacta al administrador.")
+            else:
+                raise e
 
         return user
     except HTTPException:
@@ -10300,8 +10314,18 @@ async def get_admin_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin)
 ):
-    try:
-        comps = db.query(Company).order_by(Company.id.desc()).all()
+        try:
+            comps = db.query(Company).order_by(Company.id.desc()).all()
+        except Exception as e:
+            if "logo_base64" in str(e).lower() or "column" in str(e).lower():
+                db.rollback()
+                from sqlalchemy import text
+                db.execute(text("ALTER TABLE companies ADD COLUMN logo_base64 TEXT;"))
+                db.commit()
+                comps = db.query(Company).order_by(Company.id.desc()).all()
+            else:
+                raise e
+                
         return [
             {
                 "id": c.id,
