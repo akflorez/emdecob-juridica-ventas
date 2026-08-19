@@ -31,15 +31,32 @@ export function AppSidebar() {
       {/* Logo */}
       <div className={`border-b border-sidebar-border ${collapsed ? "p-3" : "p-6"} transition-all duration-300`}>
         <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <img 
-            src={theme === "dark" ? "/juricob-shield.png" : "/juricob-shield-light.png"} 
-            alt="JURICOB Logo" 
-            className="w-10 h-10 object-contain flex-shrink-0"
-          />
+          {user?.company_logo_base64 ? (
+            <img 
+              src={user.company_logo_base64} 
+              alt={user.company_name || "Logo Empresa"} 
+              className="w-10 h-10 object-contain flex-shrink-0 rounded-md"
+            />
+          ) : (
+            <img 
+              src={theme === "dark" ? "/juricob-shield.png" : "/juricob-shield-light.png"} 
+              alt="JURICOB Logo" 
+              className="w-10 h-10 object-contain flex-shrink-0"
+            />
+          )}
+          
           {!collapsed && (
-            <div>
-              <h1 className="text-lg font-bold text-foreground leading-none">JURICOB</h1>
-              <p className="text-[9px] text-primary font-bold uppercase tracking-wider mt-1.5 leading-none">Portal Jurídico</p>
+            <div className="overflow-hidden">
+              {user?.company_logo_base64 ? (
+                <h1 className="text-sm font-bold text-foreground leading-tight truncate" title={user.company_name || ""}>
+                  {user.company_name}
+                </h1>
+              ) : (
+                <>
+                  <h1 className="text-lg font-bold text-foreground leading-none">JURICOB</h1>
+                  <p className="text-[9px] text-primary font-bold uppercase tracking-wider mt-1.5 leading-none">Portal Jurídico</p>
+                </>
+              )}
             </div>
           )}
         </div>
