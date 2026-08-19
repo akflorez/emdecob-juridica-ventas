@@ -387,7 +387,7 @@ export default function CasosPage() {
     setIsRefreshing(true);
     try {
       const result = await refreshAllCases();
-      toast({ title: "Actualización completada", description: `Se verificaron ${result.checked || 0} casos. ${result.updated_cases || 0} con cambios.` });
+      toast({ title: "Sincronización iniciada", description: result.message || "El proceso de actualización masiva ha comenzado en segundo plano. Esto puede tardar varios minutos." });
       await fetchCases();
       await fetchStats();
     } catch (error: any) {
