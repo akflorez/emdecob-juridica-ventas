@@ -4267,12 +4267,14 @@ def test_notification_email(data: TestEmailRequest, db: Session = Depends(get_db
         msg["To"] = data.email
         msg.attach(MIMEText(body, "html"))
 
+        recipient_list = [e.strip() for e in data.email.split(",") if e.strip()]
+        
         with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=30) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()
             server.login(config.smtp_user, config.smtp_pass)
-            server.sendmail(msg["From"], [data.email], msg.as_string())
+            server.sendmail(msg["From"], recipient_list, msg.as_string())
 
         return {"ok": True, "message": "Correo enviado correctamente"}
     except Exception as e:
