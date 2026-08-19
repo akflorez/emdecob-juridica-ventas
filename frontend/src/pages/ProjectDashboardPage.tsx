@@ -579,7 +579,12 @@ export default function ProjectDashboardPage() {
           </div>
           <div onClick={() => { setSelectedWorkspaceId(null); setSelectedFolderId(null); setSelectedListId(null); setDetailView(null); }} className="cursor-pointer hidden sm:block">
             <h1 className="text-xl font-black tracking-tight flex items-center gap-2 uppercase">
-              {user?.company_name || "EMDECOB JURÍDICO"} <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/20 text-[10px]">EXPERT</Badge>
+              {user?.company_logo_base64 ? (
+                <img src={user.company_logo_base64} alt={user.company_name} className="h-8 object-contain bg-white/10 p-1 rounded-md max-w-full" />
+              ) : (
+                <span className="truncate">{user?.company_name || "EMDECOB JURÍDICO"}</span>
+              )}
+              <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/20 text-[10px]">EXPERT</Badge>
             </h1>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Master Workflow Engine</p>
           </div>

@@ -119,6 +119,8 @@ export type User = {
   is_admin: boolean;
   is_superadmin?: boolean;
   company_id?: number | null;
+  company_name?: string | null;
+  company_logo_base64?: string | null;
   role?: string;
   roles?: string[];
   rol?: string;

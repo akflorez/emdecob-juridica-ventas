@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   // Edit State
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [isEditCompanyModalOpen, setIsEditCompanyModalOpen] = useState(false);
-  const [editCompanyForm, setEditCompanyForm] = useState({ nombre: '', nit: '', limite_usuarios: 5 });
+  const [editCompanyForm, setEditCompanyForm] = useState({ nombre: '', nit: '', limite_usuarios: 5, logo_base64: '' });
 
   const [editingUser, setEditingUser] = useState<any>(null);
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
@@ -60,7 +60,7 @@ export default function AdminDashboard() {
   const [suspendNotes, setSuspendNotes] = useState("");
 
   // Create Forms State
-  const [newCompany, setNewCompany] = useState({ nombre: '', nit: '', limite_usuarios: 5 });
+  const [newCompany, setNewCompany] = useState({ nombre: '', nit: '', limite_usuarios: 5, logo_base64: '' });
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
       });
       setCompanies([...companies, res]);
       setIsCompanyModalOpen(false);
-      setNewCompany({ nombre: '', nit: '', limite_usuarios: 5 });
+      setNewCompany({ nombre: '', nit: '', limite_usuarios: 5, logo_base64: '' });
       toast({ title: "Empresa creada", description: "La empresa se creó correctamente." });
       fetchData(); // reload statistics and simulator
     } catch (e: any) {
@@ -210,6 +210,28 @@ export default function AdminDashboard() {
       fetchData();
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "No se pudo actualizar la empresa", variant: "destructive" });
+    }
+  };
+
+  const handleNewLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewCompany(prev => ({ ...prev, logo_base64: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditCompanyForm(prev => ({ ...prev, logo_base64: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -761,6 +783,11 @@ export default function AdminDashboard() {
               <Label>Límite de Usuarios Permitidos</Label>
               <Input type="number" value={newCompany.limite_usuarios} onChange={e => setNewCompany({...newCompany, limite_usuarios: parseInt(e.target.value) || 0})} />
             </div>
+            <div>
+              <Label>Logo de la Empresa (Opcional)</Label>
+              <Input type="file" accept="image/*" onChange={handleNewLogoUpload} />
+              {newCompany.logo_base64 && <img src={newCompany.logo_base64} alt="Logo preview" className="mt-2 h-12 object-contain" />}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCompanyModalOpen(false)}>Cancelar</Button>
@@ -792,12 +819,17 @@ export default function AdminDashboard() {
               />
             </div>
             <div>
-              <Label>Límite Usuarios</Label>
+              <Label>Límite de Usuarios</Label>
               <Input 
-                type="number" 
+                type="number"
                 value={editCompanyForm.limite_usuarios} 
                 onChange={e => setEditCompanyForm({...editCompanyForm, limite_usuarios: parseInt(e.target.value) || 0})} 
               />
+            </div>
+            <div>
+              <Label>Logo de la Empresa</Label>
+              <Input type="file" accept="image/*" onChange={handleEditLogoUpload} />
+              {editCompanyForm.logo_base64 && <img src={editCompanyForm.logo_base64} alt="Logo preview" className="mt-2 h-12 object-contain" />}
             </div>
           </div>
           <DialogFooter>

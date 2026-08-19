@@ -1169,6 +1169,16 @@ async def lifespan(app: FastAPI):
         print("[STARTUP] create_all completado")
     except Exception as e:
         print(f"[STARTUP][WARNING] create_all error (se continua): {e}")
+
+    # Agregar columna logo_base64 si no existe
+    try:
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            conn.execute(text("ALTER TABLE companies ADD COLUMN logo_base64 TEXT;"))
+            conn.commit()
+            print("[STARTUP] Columna logo_base64 agregada exitosamente")
+    except Exception as e:
+        print(f"[STARTUP] (Normal si ya existe) Error agregando logo_base64: {e}")
     
     # Asegurar usuarios necesarios
     try:
@@ -3926,6 +3936,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         "email": getattr(current_user, 'email', None),
         "company_id": current_user.company_id,
         "company_name": current_user.company.nombre if current_user.company else None,
+        "company_logo_base64": current_user.company.logo_base64 if current_user.company else None,
         "is_admin": current_user.is_admin,
         "is_superadmin": is_sa,
         "role": role_str,
@@ -10229,6 +10240,7 @@ class CompanyCreateRequest(BaseModel):
     nombre: str
     nit: Optional[str] = None
     limite_usuarios: int = 5
+    logo_base64: Optional[str] = None
 
 class UserCreateRequest(BaseModel):
     username: str
@@ -10309,6 +10321,7 @@ async def get_admin_companies(
                 "last_payment_date": str(c.last_payment_date) if getattr(c, 'last_payment_date', None) else None,
                 "next_payment_due": str(c.next_payment_due) if getattr(c, 'next_payment_due', None) else None,
                 "billing_notes": getattr(c, 'billing_notes', None),
+                "logo_base64": getattr(c, 'logo_base64', None),
                 "created_at": str(c.created_at) if getattr(c, 'created_at', None) else None,
             }
             for c in comps
@@ -10328,7 +10341,14 @@ async def create_admin_company(
     current_user: User = Depends(require_superadmin)
 ):
     try:
-        comp = Company(nombre=data.nombre, nit=data.nit, limite_usuarios=data.limite_usuarios, estado='activo', payment_status='al_dia')
+        comp = Company(
+            nombre=data.nombre, 
+            nit=data.nit, 
+            limite_usuarios=data.limite_usuarios, 
+            estado='activo', 
+            payment_status='al_dia',
+            logo_base64=data.logo_base64
+        )
         db.add(comp)
         db.commit()
         db.refresh(comp)
@@ -10737,6 +10757,7 @@ async def admin_update_user(
 class CompanyUpdateRequest(BaseModel):
     nombre: Optional[str] = None
     nit: Optional[str] = None
+    logo_base64: Optional[str] = None
     limite_usuarios: Optional[int] = None
     estado: Optional[str] = None
     payment_status: Optional[str] = None
@@ -10767,6 +10788,9 @@ async def update_company(
         if data.limite_usuarios is not None:
             comp.limite_usuarios = data.limite_usuarios
             changes["limite_usuarios"] = data.limite_usuarios
+        if data.logo_base64 is not None:
+            comp.logo_base64 = data.logo_base64
+            changes["logo_base64"] = "updated"
         if data.estado is not None:
             comp.estado = data.estado
             changes["estado"] = data.estado
