@@ -10314,6 +10314,7 @@ async def get_admin_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin)
 ):
+    try:
         try:
             comps = db.query(Company).order_by(Company.id.desc()).all()
         except Exception as e:
