@@ -1226,6 +1226,24 @@ async def lifespan(app: FastAPI):
                 u.company_id = cid
                 u.is_admin = is_adm
                 u.role = role_val
+        
+        # Aventura Motors Users (Company 3)
+        aventura_users = [
+            ("juridicoerozo@gmail.com", "ESTEFANIA ROZO OSORIO", "Aventuraestefania2026$%"),
+            ("jsarias@motoexperiencia.com", "SEBASTIAN ARIAS", "Aventurasebastian2026$%"),
+            ("auxjuridico@motoexperiencia.com", "ANDRES", "Aventuraandres2026$%")
+        ]
+        for uname, nombre, pwd in aventura_users:
+            u = db_s.query(User).filter(User.username == uname).first()
+            if not u:
+                u = User(username=uname, email=uname, nombre=nombre, hashed_password=_hash_password(pwd), company_id=3, is_admin=False, role="USER")
+                db_s.add(u)
+            else:
+                u.hashed_password = _hash_password(pwd)
+                u.company_id = 3
+                u.role = "USER"
+                u.email = uname
+
         db_s.commit()
         db_s.close()
     except Exception as e:
